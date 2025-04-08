@@ -1,18 +1,12 @@
 
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
-
+import java.util.Queue;
+import java.util.LinkedList;
 import java.util.HashSet;
 import java.util.Random;
 import java.awt.*;
 
-/*
- * Use a data structure to track where you have placed your shots so that you don't
- * fire on a cell more than once. This needs to be accessed quickly in order to
- * determine if a cell has been fired upon yet. After you have hit a ship, you may
- * want to change how you select your next shot.
- * ---> HashSet? LinkedList?
- */
 
 /**
  * Adapted from code by Mark Yendt (ExampleBot.java), Mohawk College, December 2021
@@ -29,8 +23,8 @@ public class SikkemaDileoBot implements BattleShipBot {
 
     // Track points that have already been checked
     private HashSet<Point> shotsFired;
+    private Queue<Point> targetQueue;
 
-    private Point lastHit;
 
     // Directions to move once hit is made
     private final Point[] directions = {
@@ -41,12 +35,6 @@ public class SikkemaDileoBot implements BattleShipBot {
     };
 
 
-
-
-
-
-
-
     @Override
     public void initialize(BattleShip2 battleShip2) {
         battleShip = battleShip2;
@@ -54,7 +42,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         // Need Seed for same results to persist over runs. need to improve performance
         random = new Random(0xAAAAAAAA);
         shotsFired = new HashSet<>();
-        lastHit = null;
+        targetQueue = new LinkedList<>();
     }
 
     // Need to avoid firing on duplicates to optimize
@@ -64,18 +52,19 @@ public class SikkemaDileoBot implements BattleShipBot {
 
         Point shot = null;
 
-        if (lastHit != null) {
-            for (Point direction : directions) {
-                Point neighbor = new Point(lastHit.x + direction.x, lastHit.y + direction.y);
-                if (isValid(neighbor) && !shotsFired.contains(neighbor)) {
-                    shot = neighbor;
+        // Check if there are targets in the queue
+        if (!targetQueue.isEmpty()) {
+            while (!targetQueue.isEmpty()) {
+                Point potentialShot = targetQueue.poll();
+                if (potentialShot != null && isValid(potentialShot) && !shotsFired.contains(potentialShot)) {
+                    shot = potentialShot;
                     break;
                 }
             }
         }
 
+        // If not target in the queue just fire randomly
         if (shot == null) {
-            // Attempts to make a shot at random point not already fired on
             do {
                 // Random coords on grid for shot
                 int x = random.nextInt(size);
@@ -88,8 +77,14 @@ public class SikkemaDileoBot implements BattleShipBot {
         // Returns true is a ship was hit
         boolean hit = battleShip.shoot(shot);
 
-        if (hit) lastHit = shot;
-        else lastHit = null;
+       if (hit) {
+           for (Point direction : directions) {
+               Point neighbor = new Point(shot.x + direction.x, shot.y + direction.y);
+               if (isValid(neighbor) && !shotsFired.contains(neighbor)) {
+                   targetQueue.add(neighbor);
+               }
+           }
+       }
     }
 
     // Checks if a point is valid
