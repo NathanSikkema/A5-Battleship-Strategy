@@ -30,6 +30,22 @@ public class SikkemaDileoBot implements BattleShipBot {
     // Track points that have already been checked
     private HashSet<Point> shotsFired;
 
+    private Point lastHit;
+
+    // Directions to move once hit is made
+    private final Point[] directions = {
+            new Point(0, 1),
+            new Point(0, -1),
+            new Point(1, 0),
+            new Point(-1, 0)
+    };
+
+
+
+
+
+
+
 
     @Override
     public void initialize(BattleShip2 battleShip2) {
@@ -38,6 +54,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         // Need Seed for same results to persist over runs. need to improve performance
         random = new Random(0xAAAAAAAA);
         shotsFired = new HashSet<>();
+        lastHit = null;
     }
 
     // Need to avoid firing on duplicates to optimize
@@ -45,19 +62,39 @@ public class SikkemaDileoBot implements BattleShipBot {
     @Override
     public void fireShot() {
 
-        Point shot;
+        Point shot = null;
 
-        // Attempts to make a shot at random point not already fired on
-        do {
-            // Random coords on grid for shot
-            int x = random.nextInt(size);
-            int y = random.nextInt(size);
-            shot = new Point(x, y);
-        } while (shotsFired.contains(shot));
+        if (lastHit != null) {
+            for (Point direction : directions) {
+                Point neighbor = new Point(lastHit.x + direction.x, lastHit.y + direction.y);
+                if (isValid(neighbor) && !shotsFired.contains(neighbor)) {
+                    shot = neighbor;
+                    break;
+                }
+            }
+        }
+
+        if (shot == null) {
+            // Attempts to make a shot at random point not already fired on
+            do {
+                // Random coords on grid for shot
+                int x = random.nextInt(size);
+                int y = random.nextInt(size);
+                shot = new Point(x, y);
+            } while (shotsFired.contains(shot));
+        }
+
         shotsFired.add(shot);
-
         // Returns true is a ship was hit
         boolean hit = battleShip.shoot(shot);
+
+        if (hit) lastHit = shot;
+        else lastHit = null;
+    }
+
+    // Checks if a point is valid
+    private boolean isValid(Point point) {
+        return point.x >= 0 && point.x < size && point.y >= 0 && point.y < size;
     }
 
     @Override
