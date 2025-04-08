@@ -1,32 +1,23 @@
-
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
-import java.util.*;
+
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Stack;
 
 
 /**
- * Adapted from code by Mark Yendt (ExampleBot.java), Mohawk College, December 2021
- * 'A Sample random shooter - Takes no precaution on double shooting and has no strategy once
- * a ship is hit - This is not a good solution to the problem!'
- *
- * @author Nathan Sikkema
- * @author Brendan Dileo
- */
+ Adapted from code by Mark Yendt (ExampleBot.java), Mohawk College, December 2021
+ 'A Sample random shooter - Takes no precaution on double shooting and has no strategy once
+ a ship is hit - This is not a good solution to the problem!'
+
+ @author Nathan Sikkema
+ @author Brendan Dileo */
 
 public class SikkemaDileoBot implements BattleShipBot {
     private final boolean debug = false;
-    private int size;
-    private BattleShip2 battleShip;
-    private Random random;
-
-    // Track points that have already been checked
-    private HashSet<Point> shotsFired;
-    private Stack<Point> targetStack;
-    private ArrayList<Point> hitList;
-    private cellState[][] boardState;
-
-
     // Directions to move once hit is made
     private final Point[] directions = {
             new Point(0, 1),
@@ -34,7 +25,14 @@ public class SikkemaDileoBot implements BattleShipBot {
             new Point(1, 0),
             new Point(-1, 0)
     };
-
+    private int size;
+    private BattleShip2 battleShip;
+    private Random random;
+    // Track points that have already been checked
+    private HashSet<Point> shotsFired;
+    private Stack<Point> targetStack;
+    private ArrayList<Point> hitList;
+    private cellState[][] boardState;
 
     @Override
     public void initialize(BattleShip2 battleShip2) {
@@ -87,20 +85,20 @@ public class SikkemaDileoBot implements BattleShipBot {
         // Returns true is a ship was hit
         boolean hit = battleShip.shoot(shot);
 
-       if (hit) {
-           hitList.add(shot);
-           boardState[shot.x][shot.y] = cellState.HIT;
-           for (Point direction : directions) {
-               Point neighbor = new Point(shot.x + direction.x, shot.y + direction.y);
-               if (isValid(neighbor) && !shotsFired.contains(neighbor)) {
-                   targetStack.add(neighbor);
-               }
-           }
-       }
-       else boardState[shot.x][shot.y] = cellState.MISS;
-       if (debug) printBoardState();
+        if (hit) {
+            hitList.add(shot);
+            boardState[shot.x][shot.y] = cellState.HIT;
+            for (Point direction : directions) {
+                Point neighbor = new Point(shot.x + direction.x, shot.y + direction.y);
+                if (isValid(neighbor) && !shotsFired.contains(neighbor)) {
+                    targetStack.add(neighbor);
+                }
+            }
+        } else boardState[shot.x][shot.y] = cellState.MISS;
+        if (debug) printBoardState();
 
     }
+
     public void printBoardState() {
         for (int i = 0; i < size; i++) {
             for (int j = 0; j < size; j++) {
@@ -136,7 +134,6 @@ public class SikkemaDileoBot implements BattleShipBot {
         MISS,
         UNKNOWN
     }
-
 
 
 }
