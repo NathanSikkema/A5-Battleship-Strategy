@@ -12,10 +12,10 @@ public class A5 {
         // All logic must be added to your Bot implementation
         // see fireShot in the ExampleBot class
 
-        final int NUMBEROFGAMES = 10000;
+        final int NUMBEROFGAMES = 104;
         System.out.println(BattleShip2.getVersion());
         BattleShip2 battleShip1 = new BattleShip2(NUMBEROFGAMES, new SikkemaDileoBot());
-        int [] gameResults1 = battleShip1.run();
+        battleShip1.run();
 
 
         // You may add some analysis code to look at all the game scores that are returned in gameResults
