@@ -63,14 +63,15 @@ public class SikkemaDileoBot implements BattleShipBot {
             }
         }
 
-        // If not target in the queue just fire randomly
+        // If not target in the queue just fire randomly in a checkered pattern
         if (shot == null) {
             do {
-                // Random coords on grid for shot
                 int x = random.nextInt(size);
                 int y = random.nextInt(size);
-                shot = new Point(x, y);
-            } while (shotsFired.contains(shot));
+                if ((x + y) % 2 == 0) {
+                    shot = new Point(x, y);
+                }
+            } while (shot == null || shotsFired.contains(shot));
         }
 
         shotsFired.add(shot);
@@ -94,7 +95,7 @@ public class SikkemaDileoBot implements BattleShipBot {
 
     @Override
     public String getAuthors() {
-        return "Nathan Sikkema\nBrendan Dileo";
+        return "Nathan Sikkema and Brendan Dileo";
     }
 
 
