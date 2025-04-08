@@ -14,12 +14,16 @@ public class A5 {
 
         final int NUMBEROFGAMES = 10000;
         System.out.println(BattleShip2.getVersion());
-        BattleShip2 battleShip = new BattleShip2(NUMBEROFGAMES, new ExampleBot());
-        int [] gameResults = battleShip.run();
+        BattleShip2 battleShip1 = new BattleShip2(NUMBEROFGAMES, new ExampleBot());
+        int [] gameResults1 = battleShip1.run();
+
+        BattleShip2 battleShip2 = new BattleShip2(NUMBEROFGAMES, new SikkemaDileoBot());
+        int[] gameResults2 = battleShip2.run();
 
         // You may add some analysis code to look at all the game scores that are returned in gameResults
         // This can be useful for debugging purposes.
 
-        battleShip.reportResults();
+        battleShip1.reportResults();
+        battleShip2.reportResults();
     }
 }
