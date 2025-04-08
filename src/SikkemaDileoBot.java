@@ -6,8 +6,6 @@ import java.util.HashSet;
 import java.util.Random;
 import java.awt.*;
 
-
-
 /*
  * Use a data structure to track where you have placed your shots so that you don't
  * fire on a cell more than once. This needs to be accessed quickly in order to
@@ -29,22 +27,17 @@ public class SikkemaDileoBot implements BattleShipBot {
     private BattleShip2 battleShip;
     private Random random;
 
+    // Track points that have already been checked
     private HashSet<Point> shotsFired;
-
-
 
 
     @Override
     public void initialize(BattleShip2 battleShip2) {
         battleShip = battleShip2;
         size = BattleShip2.BOARD_SIZE;
-
-
-        // Need to use a Seed if you want the same results to occur from run to run
-        // This is needed if you are trying to improve the performance of your code
-
-        // Needed for random shooter - not required for more systematic approaches
+        // Need Seed for same results to persist over runs. need to improve performance
         random = new Random(0xAAAAAAAA);
+        shotsFired = new HashSet<>();
     }
 
     // Need to avoid firing on duplicates to optimize
@@ -52,12 +45,19 @@ public class SikkemaDileoBot implements BattleShipBot {
     @Override
     public void fireShot() {
 
-        // Random coords on grid for shot
-        int x = random.nextInt(size);
-        int y = random.nextInt(size);
+        Point shot;
+
+        // Attempts to make a shot at random point not already fired on
+        do {
+            // Random coords on grid for shot
+            int x = random.nextInt(size);
+            int y = random.nextInt(size);
+            shot = new Point(x, y);
+        } while (shotsFired.contains(shot));
+        shotsFired.add(shot);
 
         // Returns true is a ship was hit
-        boolean hit = battleShip.shoot(new Point(x,y));
+        boolean hit = battleShip.shoot(shot);
     }
 
     @Override
