@@ -7,6 +7,8 @@ import battleship.BattleShip2;
 
 public class A5 {
     public static void main(String[] args) {
+        // Enable debug mode
+        SikkemaDileoBot.debug = false;
 
         // DO NOT add any logic to this code
         // All logic must be added to your Bot implementation
@@ -16,7 +18,6 @@ public class A5 {
         System.out.println(BattleShip2.getVersion());
         BattleShip2 battleShip1 = new BattleShip2(NUMBEROFGAMES, new SikkemaDileoBot());
         int [] gameResults1 = battleShip1.run();
-
 
         // You may add some analysis code to look at all the game scores that are returned in gameResults
         // This can be useful for debugging purposes.
