@@ -17,7 +17,7 @@ public class A5 {
         final int NUMBEROFGAMES = 10000;
         System.out.println(BattleShip2.getVersion());
         BattleShip2 battleShip1 = new BattleShip2(NUMBEROFGAMES, new SikkemaDileoBot());
-        int [] gameResults1 = battleShip1.run();
+        battleShip1.run();
 
         // You may add some analysis code to look at all the game scores that are returned in gameResults
         // This can be useful for debugging purposes.
