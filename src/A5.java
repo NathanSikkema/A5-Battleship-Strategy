@@ -14,7 +14,7 @@ public class A5 {
         // All logic must be added to your Bot implementation
         // see fireShot in the ExampleBot class
 
-        final int NUMBEROFGAMES = 10000;
+        final int NUMBEROFGAMES = 1000;
         System.out.println(BattleShip2.getVersion());
         BattleShip2 battleShip1 = new BattleShip2(NUMBEROFGAMES, new SikkemaDileoBot());
         battleShip1.run();

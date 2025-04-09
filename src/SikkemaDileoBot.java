@@ -46,6 +46,111 @@ public class SikkemaDileoBot implements BattleShipBot {
         for (int i = 0; i < size; i++) for (int j = 0; j < size; j++) boardState[i][j] = cellState.UNKNOWN;
     }
 
+    private int[][] buildProbabilityMap(int[] shipSizes, ArrayList<Point> hitList, cellState[][] boardState) {
+        int[][] probabilityMap = new int[BattleShip2.BOARD_SIZE][BattleShip2.BOARD_SIZE];
+
+        for (int i = 0; i < BattleShip2.BOARD_SIZE; i++) {
+            for (int j = 0; j < BattleShip2.BOARD_SIZE; j++) {
+                probabilityMap[i][j] = 0;
+            }
+        }
+
+        for (int shipSize : shipSizes) {
+            for (int i = 0; i < BattleShip2.BOARD_SIZE; i++) {
+                for (int j = 0; j <= BattleShip2.BOARD_SIZE - shipSize; j++) {
+                    boolean canPlace = true;
+                    for (int k = 0; k < shipSize; k++) {
+                        Point p = new Point(i, j + k);
+                        if (boardState[p.x][p.y] == cellState.MISS || boardState[p.x][p.y] == cellState.USELESS || hitList.contains(p)) {
+                            canPlace = false;
+                            break;
+                        }
+                    }
+                    if (canPlace) {
+                        for (int k = 0; k < shipSize; k++) {
+                            probabilityMap[i][j + k]++;
+                        }
+                    }
+                }
+            }
+
+            // Vertical placement checks
+            for (int i = 0; i <= BattleShip2.BOARD_SIZE - shipSize; i++) {
+                for (int j = 0; j < BattleShip2.BOARD_SIZE; j++) {
+                    boolean canPlace = true;
+                    for (int k = 0; k < shipSize; k++) {
+                        Point p = new Point(i + k, j);
+                        if (boardState[p.x][p.y] == cellState.MISS || boardState[p.x][p.y] == cellState.USELESS || hitList.contains(p)) {
+                            canPlace = false;
+                            break;
+                        }
+                    }
+                    if (canPlace) {
+                        for (int k = 0; k < shipSize; k++) {
+                            probabilityMap[i + k][j]++;
+                        }
+                    }
+                }
+            }
+        }
+
+        HashSet<Point> hitAdjacencies = new HashSet<>();
+        for (Point hit : hitList) {
+            int hitX = hit.x;
+            int hitY = hit.y;
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    if (dx == 0 && dy == 0) continue;
+                    if (dx != 0 && dy != 0) continue;
+                    int newX = hitX + dx;
+                    int newY = hitY + dy;
+                    if (isValid(new Point(newX, newY)) && boardState[newX][newY] == cellState.UNKNOWN) {
+                        if (!hitAdjacencies.contains(new Point(newX, newY))) {
+                            probabilityMap[newX][newY] += 20;
+                            hitAdjacencies.add(new Point(newX, newY));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Optional debug print to view the probability map
+        if (debug) {
+            System.out.println("Probability Map:");
+            for (int i = 0; i < BattleShip2.BOARD_SIZE; i++) {
+                for (int j = 0; j < BattleShip2.BOARD_SIZE; j++) {
+                    String value = probabilityMap[i][j] + "";
+                    if (probabilityMap[i][j] < 10) value = " " + probabilityMap[i][j];
+                    System.out.print(value + " ");
+                }
+                System.out.println();
+            }
+        }
+
+        return probabilityMap;
+    }
+
+
+
+    private Point findHighestProbability(int[][] map) {
+        Point bestShot = null;
+        int highestProbability = -1;
+
+        for (int i = 0; i < map.length; i++) {
+            for (int j = 0; j < map[i].length; j++) {
+                Point currentPoint = new Point(i, j);
+                if (shotsFired.contains(currentPoint) || uselessLocations.contains(currentPoint)) continue;
+
+                if (map[i][j] > highestProbability) {
+                    highestProbability = map[i][j];
+                    bestShot = currentPoint;
+                }
+            }
+        }
+        return bestShot;
+    }
+
+
     /**
      Fires a shot at the best possible location
      Uses a combination of target queue and probability map to determine where to shoot
@@ -54,9 +159,17 @@ public class SikkemaDileoBot implements BattleShipBot {
     public void fireShot() {
         Point shot = null;
         int previousSunkShips = battleShip.numberOfShipsSunk();
+
+        int[][] probabilityMap = buildProbabilityMap(battleShip.getShipSizes(), hitList, boardState);
         if (!targetQueue.isEmpty())
             do shot = targetQueue.poll();
             while (shot != null && (shotsFired.contains(shot) || uselessLocations.contains(shot)));
+
+        if (shot == null) {
+            Point p = findHighestProbability(probabilityMap);
+            if (!shotsFired.contains(p) && !uselessLocations.contains(p))
+                shot = p;
+        }
 
         if (shot == null) {
             debugPrint("Falling back to any valid position");
@@ -82,15 +195,15 @@ public class SikkemaDileoBot implements BattleShipBot {
             consecutiveHits++;
             debugPrint("Consecutive hits: " + consecutiveHits);
 
-            int currentSunkShips = battleShip.numberOfShipsSunk();
-            if (currentSunkShips > previousSunkShips) {
+            if (battleShip.numberOfShipsSunk() > previousSunkShips) {
                 debugPrint("Ship sunk! Resetting target queue and state");
                 targetQueue.clear();
                 lastHit = null;
                 hitOrientation = targetOrientation.UNKNOWN;
                 consecutiveHits = 0;
                 markSunkShipCells();
-            } else if (lastHit == null) {
+            }
+            else if (lastHit == null) {
                 debugPrint("First hit, adding adjacent points to queue");
                 lastHit = shot;
                 for (Point dir : directions) {
@@ -99,16 +212,14 @@ public class SikkemaDileoBot implements BattleShipBot {
                         targetQueue.add(neighbor);
                 }
             } else {
-                if (hitOrientation == targetOrientation.UNKNOWN) {
-                    if (shot.x == lastHit.x) {
-                        hitOrientation = targetOrientation.HORIZONTAL;
-                        debugPrint("Ship orientation determined: HORIZONTAL");
-                        markPerpendicularCellsUseless(shot, true);
-                    } else if (shot.y == lastHit.y) {
-                        hitOrientation = targetOrientation.VERTICAL;
-                        debugPrint("Ship orientation determined: VERTICAL");
-                        markPerpendicularCellsUseless(shot, false);
-                    }
+                if (shot.x == lastHit.x) {
+                    hitOrientation = targetOrientation.HORIZONTAL;
+                    debugPrint("Ship orientation determined: HORIZONTAL");
+                    markPerpendicularCellsUseless(shot, true);
+                } else if (shot.y == lastHit.y) {
+                    hitOrientation = targetOrientation.VERTICAL;
+                    debugPrint("Ship orientation determined: VERTICAL");
+                    markPerpendicularCellsUseless(shot, false);
                 }
                 if (hitOrientation != targetOrientation.UNKNOWN) {
                     Point nextCell = getNextCellInDirection(shot);
@@ -140,21 +251,13 @@ public class SikkemaDileoBot implements BattleShipBot {
         if (hitOrientation == targetOrientation.HORIZONTAL) {
             Point right = new Point(current.x, current.y + 1);
             Point left = new Point(current.x, current.y - 1);
-            if (isValid(right) && !shotsFired.contains(right) && !uselessLocations.contains(right)) {
-                return right;
-            }
-            if (isValid(left) && !shotsFired.contains(left) && !uselessLocations.contains(left)) {
-                return left;
-            }
+            if (isValid(right) && !shotsFired.contains(right) && !uselessLocations.contains(right)) return right;
+            if (isValid(left) && !shotsFired.contains(left) && !uselessLocations.contains(left)) return left;
         } else if (hitOrientation == targetOrientation.VERTICAL) {
             Point down = new Point(current.x + 1, current.y);
             Point up = new Point(current.x - 1, current.y);
-            if (isValid(down) && !shotsFired.contains(down) && !uselessLocations.contains(down)) {
-                return down;
-            }
-            if (isValid(up) && !shotsFired.contains(up) && !uselessLocations.contains(up)) {
-                return up;
-            }
+            if (isValid(down) && !shotsFired.contains(down) && !uselessLocations.contains(down)) return down;
+            if (isValid(up) && !shotsFired.contains(up) && !uselessLocations.contains(up)) return up;
         }
         return null;
     }
