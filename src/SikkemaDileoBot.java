@@ -1,3 +1,4 @@
+
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
 
@@ -43,7 +44,7 @@ public class SikkemaDileoBot implements BattleShipBot {
     // Track the remaining ship sizes for faster probability calculation
     private ArrayList<Integer> remainingShipSizes;
 
-    // Point objects to be resued - garbage collection ?? Check this: https://stackoverflow.com/questions/40498096/is-everything-null-in-java-eligible-for-garbage-collection
+    // Point objects to be resued - garbage collection
     private Point tempPoint = new Point();
     private Point reusablePoint = new Point();
     private Point[] neighborPoints = new Point[4];
@@ -104,7 +105,6 @@ public class SikkemaDileoBot implements BattleShipBot {
 
     /**
      * Builds a probability map for potential ship locations.
-     *
      * shipSizes unused?
      *
      * @param shipSizes Array containijg the remaining ships.
@@ -216,17 +216,17 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
             }
         }
-
         return probabilityMap;
     }
 
     /**
      * Finds the cell with the highest probability score that hasn't been shot at.
      *
-     * @param map
-     * @return
+     * @param map Array representing the probability scores for each cell.
+     * @return A Point representing the coords of the cell with highest probability.
      */
     private Point findHighestProbability(int[][] map) {
+        // Init
         int highestProbability = -1;
         int bestX = -1;
         int bestY = -1;
@@ -234,8 +234,9 @@ public class SikkemaDileoBot implements BattleShipBot {
         final boolean[][] shotsFired = this.shotsFired;
         final boolean[][] uselessLocations = this.uselessLocations;
 
-        // Process in blocks for better cache utilization
-        final int BLOCK_SIZE = 8; // Increased block size for better cache utilization
+        // Try process in blocks for better use of cache
+        // Increased block size *
+        final int BLOCK_SIZE = 8;
         for (int i = 0; i < size; i += BLOCK_SIZE) {
             for (int j = 0; j < size; j += BLOCK_SIZE) {
                 int endI = Math.min(i + BLOCK_SIZE, size);
@@ -259,17 +260,19 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
             }
         }
-
         return highestProbability > 0 ? new Point(bestX, bestY) : null;
     }
 
     /**
      * Determines the coordinates of a ship based on a hit.
      * Tracks the ship's orientation and all cells that are part of it.
+     * The returned value provides us with the starting point for identifying a ships location/position and orientation.
      *
-     * @param p
+     * @param p Point containing the coords of the cell that was hit.
      */
     private void findShipCoordinates(Point p) {
+        // Init list to store coords of diff ship cells and add the initial hit points to the list of coords.
+        // Next init the ships orientation (Unknown, we dont know it yet)
         ArrayList<Point> shipCoordinates = new ArrayList<>();
         shipCoordinates.add(p);
         orientation targetBoatOrientation = orientation.UNKNOWN;
@@ -277,23 +280,31 @@ public class SikkemaDileoBot implements BattleShipBot {
         // Use local reference to avoid repeated field access
         cellState[][] localBoardState = this.boardState;
 
-        // Try to find a direction with another HIT adjacent
+        // Iterate through all potential directions to find a direction with another adjacent hit HIT
         for (Point dir : directions) {
+            // Coords of adjacent cell in direction
             int newX = p.x + dir.x;
             int newY = p.y + dir.y;
+            // Was it a hit?        TODO: If we remove the 'isValid' call, will this improve time and accuracy?
             if (isValid(newX, newY) && localBoardState[newX][newY] == cellState.HIT) {
                 // Set orientation based on direction
                 targetBoatOrientation = (dir.x != 0) ? orientation.VERTICAL : orientation.HORIZONTAL;
 
-                // Traverse in both directions along the identified direction
+                // Traverse through both positive and negative directions based on orientation
                 for (int mult = -1; mult <= 1; mult += 2) {
+                    // Calc x and y direction steps
                     int dx = dir.x * mult;
                     int dy = dir.y * mult;
+                    // Start traversing from the first hit point
                     int currX = p.x + dx;
                     int currY = p.y + dy;
 
+                    // Continue to traverse while the cell is considered valid AND a hit is made
+                    // TODO: Another 'isValid' call...
                     while (isValid(currX, currY) && localBoardState[currX][currY] == cellState.HIT) {
+                        // If hit, add the cell that has been hit as part of the ship
                         shipCoordinates.add(new Point(currX, currY));
+                        // Try next cells in the current direction were in
                         currX += dx;
                         currY += dy;
                     }
@@ -309,15 +320,17 @@ public class SikkemaDileoBot implements BattleShipBot {
                         return;
                     }
                 }
-
-                // If we don't have a match yet, check if we need to look further
+                // This will run if we dont have a match yet, its a safeguard to check if we look further
+                // If we do, then traverse in both directions again
                 for (int mult = -1; mult <= 1; mult += 2) {
+                    // Same approach from above
+                    // Calculate steps and move
                     int dx = dir.x * mult;
                     int dy = dir.y * mult;
                     int currX = p.x + dx;
                     int currY = p.y + dy;
 
-                    // Look ahead one more cell if we haven't found a match
+                    // If there is still no match, we try to look to another cell
                     if (isValid(currX, currY) && localBoardState[currX][currY] == cellState.UNKNOWN) {
                         // Check if adding this cell would match a ship size
                         for (ShipStatus s : shipStatuses) {
@@ -329,13 +342,12 @@ public class SikkemaDileoBot implements BattleShipBot {
                         }
                     }
                 }
-
+                // Update the ships status with the coords identified and new orientation (if updated) and return
                 updateShipStatus(shipCoordinates, targetBoatOrientation);
                 return;
             }
         }
-
-        // If no direction found, it's a single-point ship (unlikely with size ≥ 2)
+        // If there was no direction found
         updateShipStatus(shipCoordinates, targetBoatOrientation);
     }
 
@@ -343,18 +355,23 @@ public class SikkemaDileoBot implements BattleShipBot {
      * Updates the status of a ship when it's sunk.
      * Marks adjacent cells as useless and updates ship tracking.
      *
-     * @param shipCoordinates
-     * @param o
+     * @param shipCoordinates ArrayList of Point objects representing the coords of the ship that have been hit.
+     * @param o The ships orientation.
      */
     private void updateShipStatus(ArrayList<Point> shipCoordinates, orientation o) {
+        // Init a new list to store the cells around the ship that has been sunk
         ArrayList<Point> sunkShipNeighbors = new ArrayList<>();
 
         // Use local references to avoid repeated field access
         cellState[][] localBoardState = this.boardState;
         boolean[][] localUselessLocations = this.uselessLocations;
 
+        // Loop through all ship statuses in order to find the unsunk ship,
+        // must match the size of the ship that has been sunk
         for (ShipStatus s : shipStatuses) {
+            // Check
             if (!s.isSunk() && s.getSize() == shipCoordinates.size()) {
+                // Update coords, mark the ship as sunk, set orientation and retreive neighboring cells
                 s.setHitCoordinates(shipCoordinates);
                 s.setSunk(true);
                 s.setShipOrientation(o);
@@ -366,6 +383,7 @@ public class SikkemaDileoBot implements BattleShipBot {
             }
         }
 
+        // Debug
         if (debug) System.out.print("Marking cells useless next to sunk boat: ");
         for (Point n : sunkShipNeighbors) {
             if (isValid(n) && localBoardState[n.x][n.y] != cellState.HIT) {
@@ -384,9 +402,10 @@ public class SikkemaDileoBot implements BattleShipBot {
     public void fireShot() {
         Point shot = null;
         int previousSunkShips = battleShip.numberOfShipsSunk();
-
-        // Build probability map first      -        TODO: Should we only build it if needed?
-        int[][] probabilityMap = buildProbabilityMap(battleShip.getShipSizes(), hitList, boardState);
+        // Only build map if target queue empty
+        if (targetQueue.isEmpty()) {
+            probabilityMap = buildProbabilityMap(battleShip.getShipSizes(), hitList, boardState);
+        }
 
         // If we have a hit and know the orientation, prioritize completing the ship
         if (lastHit != null && hitOrientation != orientation.UNKNOWN) {
