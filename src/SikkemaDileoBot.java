@@ -1,3 +1,4 @@
+
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
 
@@ -44,7 +45,7 @@ public class SikkemaDileoBot implements BattleShipBot {
     private Point tempPoint = new Point();
     private Point reusablePoint = new Point();
     private Point[] neighborPoints = new Point[4];
-    
+
     // Pre-allocated arrays for better performance
     private int[][] probabilityMap;
     private boolean[][] shipCells;
@@ -67,11 +68,11 @@ public class SikkemaDileoBot implements BattleShipBot {
         lastHit = null;
         consecutiveHits = 0;
         remainingShipSizes = new ArrayList<>();
-        
+
         // Initialize reusable arrays
         probabilityMap = new int[size][size];
         shipCells = new boolean[size][size];
-        
+
         // Initialize neighbor points
         for (int i = 0; i < 4; i++) {
             neighborPoints[i] = new Point();
@@ -110,7 +111,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                 for (int j = 0; j <= size - shipSize; j++) {
                     boolean canPlace = true;
                     int hitCount = 0;
-                    
+
                     // Quick check for invalid placements
                     for (int k = 0; k < shipSize; k++) {
                         if (boardState[i][j + k] == cellState.MISS || boardState[i][j + k] == cellState.USELESS) {
@@ -126,7 +127,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                     if (canPlace) {
                         // Simplified scoring - focus on ship size and hits
                         int baseScore = shipSize * 10 + hitCount * 20;
-                        
+
                         // Add early game bonus for larger ships
                         if (hitList.size() < 20) {
                             baseScore += shipSize * 5;
@@ -142,15 +143,17 @@ public class SikkemaDileoBot implements BattleShipBot {
             // Vertical placements
             for (int i = 0; i <= size - shipSize; i++) {
                 for (int j = 0; j < size; j++) {
+                    // Track if we can place and num of hits
                     boolean canPlace = true;
                     int hitCount = 0;
-                    
+
                     // Quick check for invalid placements
                     for (int k = 0; k < shipSize; k++) {
                         if (boardState[i + k][j] == cellState.MISS || boardState[i + k][j] == cellState.USELESS) {
                             canPlace = false;
                             break;
                         }
+                        // Check for hit, increment count if hit
                         if (boardState[i + k][j] == cellState.HIT) {
                             hitCount++;
                         }
@@ -160,7 +163,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                     if (canPlace) {
                         // Simplified scoring - focus on ship size and hits
                         int baseScore = shipSize * 10 + hitCount * 20;
-                        
+
                         // Add early game bonus for larger ships
                         if (hitList.size() < 20) {
                             baseScore += shipSize * 5;
@@ -174,7 +177,7 @@ public class SikkemaDileoBot implements BattleShipBot {
             }
         }
 
-        // Add high bonus for cells adjacent to hits
+        // Adds a high bonus for cells adjacent to hits
         for (Point hit : hitList) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
@@ -210,7 +213,6 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
             }
         }
-
         return probabilityMap;
     }
 
