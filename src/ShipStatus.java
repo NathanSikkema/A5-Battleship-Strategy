@@ -2,12 +2,9 @@ import battleship.BattleShip2;
 
 import java.awt.*;
 import java.util.ArrayList;
-import java.util.HashSet;
-
 
 public class ShipStatus {
     private boolean sunk;
-    private ArrayList<Point> hitCoordinates;
     private int size;
     private orientation shipOrientation;
     
@@ -15,34 +12,42 @@ public class ShipStatus {
     private int[][] hitCoordsArray;
     private int hitCoordsCount = 0;
     
+    // Pre-allocated arrays for neighbors
+    private static final int MAX_NEIGHBORS = 16; // Increased from 8 to handle larger ships
+    private Point[] neighborCache;
+    private int neighborCount;
+    
+    // Pre-allocated direction arrays for better performance
+    private static final int[] DX = {0, 1, 0, -1}; // right, down, left, up
+    private static final int[] DY = {1, 0, -1, 0};
+    
     public ShipStatus(int size) {
         this.sunk = false;
         this.size = size;
-        this.hitCoordinates = new ArrayList<>();
         this.hitCoordsArray = new int[size][2];
+        this.neighborCache = new Point[MAX_NEIGHBORS];
+        for (int i = 0; i < MAX_NEIGHBORS; i++) {
+            neighborCache[i] = new Point();
+        }
     }
 
     public boolean isSunk() {
         return sunk;
     }
-    public int getSize() {return size;}
+    
+    public int getSize() {
+        return size;
+    }
 
     public void setSunk(boolean sunk) {
         this.sunk = sunk;
     }
 
     public int getSunkLength() {
-        if (sunk) return hitCoordinates.size();
-        else return -1;
-    }
-
-    public ArrayList<Point> getHitCoordinates() {
-        return hitCoordinates;
+        return sunk ? hitCoordsCount : -1;
     }
 
     public void setHitCoordinates(ArrayList<Point> hitCoordinates) {
-        this.hitCoordinates = hitCoordinates;
-        // Also update the array representation
         hitCoordsCount = hitCoordinates.size();
         for (int i = 0; i < hitCoordsCount; i++) {
             hitCoordsArray[i][0] = hitCoordinates.get(i).x;
@@ -50,16 +55,22 @@ public class ShipStatus {
         }
     }
 
+    public ArrayList<Point> getHitCoordinates() {
+        ArrayList<Point> result = new ArrayList<>(hitCoordsCount);
+        for (int i = 0; i < hitCoordsCount; i++) {
+            result.add(new Point(hitCoordsArray[i][0], hitCoordsArray[i][1]));
+        }
+        return result;
+    }
+
     public void addCoordinate(Point p) {
-        hitCoordinates.add(p);
-        // Also update the array representation
         hitCoordsArray[hitCoordsCount][0] = p.x;
         hitCoordsArray[hitCoordsCount][1] = p.y;
         hitCoordsCount++;
     }
 
     public Point getCoordinate(int i) {
-        return hitCoordinates.get(i);
+        return new Point(hitCoordsArray[i][0], hitCoordsArray[i][1]);
     }
 
     public void setShipOrientation(orientation shipOrientation) {
@@ -67,7 +78,6 @@ public class ShipStatus {
     }
 
     public ArrayList<Point> getNeighbors() {
-        ArrayList<Point> neighbors = new ArrayList<>();
         // Use a boolean array instead of HashSet for better performance
         boolean[][] shipCells = new boolean[BattleShip2.BOARD_SIZE][BattleShip2.BOARD_SIZE];
         
@@ -76,26 +86,26 @@ public class ShipStatus {
             shipCells[hitCoordsArray[i][0]][hitCoordsArray[i][1]] = true;
         }
         
-        int[] dx = {0, 1, 0, -1}; // right, down, left, up
-        int[] dy = {1, 0, -1, 0};
-
+        // Create ArrayList with initial capacity to avoid resizing
+        ArrayList<Point> result = new ArrayList<>(hitCoordsCount * 4);
+        
         for (int i = 0; i < hitCoordsCount; i++) {
             int x = hitCoordsArray[i][0];
             int y = hitCoordsArray[i][1];
             
             for (int j = 0; j < 4; j++) {
-                int newX = x + dx[j];
-                int newY = y + dy[j];
+                int newX = x + DX[j];
+                int newY = y + DY[j];
                 
                 if (isValid(newX, newY) && !shipCells[newX][newY]) {
-                    neighbors.add(new Point(newX, newY));
+                    // Create new Point directly
+                    result.add(new Point(newX, newY));
                 }
             }
         }
 
-        return neighbors;
+        return result;
     }
-
 
     private boolean isValid(int x, int y) {
         return x >= 0 && x < BattleShip2.BOARD_SIZE && y >= 0 && y < BattleShip2.BOARD_SIZE;
