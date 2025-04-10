@@ -1,9 +1,9 @@
-
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -97,122 +97,130 @@ public class SikkemaDileoBot implements BattleShipBot {
      * Optimized version with reduced object creation.
      */
     private int[][] buildProbabilityMap(int[] shipSizes, ArrayList<Point> hitList, cellState[][] boardState) {
-        // Clear the probability map
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                probabilityMap[i][j] = 0;
+        // Clear the probability map more efficiently using Arrays.fill
+        for (int[] row : probabilityMap) {
+            Arrays.fill(row, 0);
+        }
+
+        // Pre-calculate ship size multipliers to avoid repeated calculations
+        boolean isEarlyGame = hitList.size() < 20;
+        int[] baseScores = new int[remainingShipSizes.size()];
+        for (int i = 0; i < remainingShipSizes.size(); i++) {
+            int shipSize = remainingShipSizes.get(i);
+            baseScores[i] = shipSize * 10;
+            if (isEarlyGame) {
+                baseScores[i] += shipSize * 5;
             }
         }
 
         // Calculate base probabilities with higher weights for larger ships
-        for (int shipSize : remainingShipSizes) {
+        for (int i = 0; i < remainingShipSizes.size(); i++) {
+            int shipSize = remainingShipSizes.get(i);
+            int baseScore = baseScores[i];
+            
             // Horizontal placements
-            for (int i = 0; i < size; i++) {
-                for (int j = 0; j <= size - shipSize; j++) {
+            for (int row = 0; row < size; row++) {
+                for (int col = 0; col <= size - shipSize; col++) {
                     boolean canPlace = true;
                     int hitCount = 0;
 
                     // Quick check for invalid placements
                     for (int k = 0; k < shipSize; k++) {
-                        if (boardState[i][j + k] == cellState.MISS || boardState[i][j + k] == cellState.USELESS) {
+                        cellState state = boardState[row][col + k];
+                        if (state == cellState.MISS || state == cellState.USELESS) {
                             canPlace = false;
                             break;
                         }
-                        if (boardState[i][j + k] == cellState.HIT) {
+                        if (state == cellState.HIT) {
                             hitCount++;
                         }
                     }
 
-                    // Add probability scores with simplified weights
+                    // Add probability scores
                     if (canPlace) {
-                        // Simplified scoring - focus on ship size and hits
-                        int baseScore = shipSize * 10 + hitCount * 20;
-
-                        // Add early game bonus for larger ships
-                        if (hitList.size() < 20) {
-                            baseScore += shipSize * 5;
-                        }
-
+                        int score = baseScore + hitCount * 20;
                         for (int k = 0; k < shipSize; k++) {
-                            probabilityMap[i][j + k] += baseScore;
+                            probabilityMap[row][col + k] += score;
                         }
                     }
                 }
             }
 
             // Vertical placements
-            for (int i = 0; i <= size - shipSize; i++) {
-                for (int j = 0; j < size; j++) {
-                    // Track if we can place and num of hits
+            for (int row = 0; row <= size - shipSize; row++) {
+                for (int col = 0; col < size; col++) {
                     boolean canPlace = true;
                     int hitCount = 0;
 
                     // Quick check for invalid placements
                     for (int k = 0; k < shipSize; k++) {
-                        if (boardState[i + k][j] == cellState.MISS || boardState[i + k][j] == cellState.USELESS) {
+                        cellState state = boardState[row + k][col];
+                        if (state == cellState.MISS || state == cellState.USELESS) {
                             canPlace = false;
                             break;
                         }
-                        // Check for hit, increment count if hit
-                        if (boardState[i + k][j] == cellState.HIT) {
+                        if (state == cellState.HIT) {
                             hitCount++;
                         }
                     }
 
-                    // Add probability scores with simplified weights
+                    // Add probability scores
                     if (canPlace) {
-                        // Simplified scoring - focus on ship size and hits
-                        int baseScore = shipSize * 10 + hitCount * 20;
-
-                        // Add early game bonus for larger ships
-                        if (hitList.size() < 20) {
-                            baseScore += shipSize * 5;
-                        }
-
+                        int score = baseScore + hitCount * 20;
                         for (int k = 0; k < shipSize; k++) {
-                            probabilityMap[i + k][j] += baseScore;
+                            probabilityMap[row + k][col] += score;
                         }
                     }
                 }
             }
         }
 
-        // Adds a high bonus for cells adjacent to hits
+        // Optimize adjacent cell bonus calculation by avoiding diagonal checks
         for (Point hit : hitList) {
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    if (dx == 0 && dy == 0) continue;
-                    if (dx != 0 && dy != 0) continue; // Skip diagonals
-                    int newX = hit.x + dx;
-                    int newY = hit.y + dy;
-                    if (isValid(newX, newY) && boardState[newX][newY] == cellState.UNKNOWN) {
-                        probabilityMap[newX][newY] += 30; // Base bonus for adjacent cells
-
-                        // Additional bonus if this cell could complete a ship
-                        if (lastHit != null && hitOrientation != orientation.UNKNOWN) {
-                            if ((hitOrientation == orientation.HORIZONTAL && dx == 0) ||
-                                    (hitOrientation == orientation.VERTICAL && dy == 0)) {
-                                probabilityMap[newX][newY] += 50; // Higher bonus for potential ship completion
-                            }
-                        }
+            // Check horizontal neighbors
+            for (int dy = -1; dy <= 1; dy += 2) {
+                int newY = hit.y + dy;
+                if (isValid(hit.x, newY) && boardState[hit.x][newY] == cellState.UNKNOWN) {
+                    probabilityMap[hit.x][newY] += 30;
+                    if (lastHit != null && hitOrientation == orientation.HORIZONTAL) {
+                        probabilityMap[hit.x][newY] += 50;
+                    }
+                }
+            }
+            // Check vertical neighbors
+            for (int dx = -1; dx <= 1; dx += 2) {
+                int newX = hit.x + dx;
+                if (isValid(newX, hit.y) && boardState[newX][hit.y] == cellState.UNKNOWN) {
+                    probabilityMap[newX][hit.y] += 30;
+                    if (lastHit != null && hitOrientation == orientation.VERTICAL) {
+                        probabilityMap[newX][hit.y] += 50;
                     }
                 }
             }
         }
 
-        // Decrease probability around misses
+        // Optimize miss penalty calculation by avoiding diagonal checks
         for (int i = 0; i < size; i++) {
             for (int j = 0; j < size; j++) {
                 if (boardState[i][j] == cellState.MISS) {
-                    for (Point dir : directions) {
-                        int x = i + dir.x;
-                        int y = j + dir.y;
-                        if (isValid(x, y) && boardState[x][y] == cellState.UNKNOWN)
-                            probabilityMap[x][y] = Math.max(0, probabilityMap[x][y] - 10);
+                    // Check horizontal neighbors
+                    for (int dy = -1; dy <= 1; dy += 2) {
+                        int newY = j + dy;
+                        if (isValid(i, newY) && boardState[i][newY] == cellState.UNKNOWN) {
+                            probabilityMap[i][newY] = Math.max(0, probabilityMap[i][newY] - 10);
+                        }
+                    }
+                    // Check vertical neighbors
+                    for (int dx = -1; dx <= 1; dx += 2) {
+                        int newX = i + dx;
+                        if (isValid(newX, j) && boardState[newX][j] == cellState.UNKNOWN) {
+                            probabilityMap[newX][j] = Math.max(0, probabilityMap[newX][j] - 10);
+                        }
                     }
                 }
             }
         }
+
         return probabilityMap;
     }
 
