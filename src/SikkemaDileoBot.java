@@ -13,9 +13,6 @@ import java.util.Queue;
 
 public class SikkemaDileoBot implements BattleShipBot {
 
-    // Debug
-    public static boolean debug = false;
-
     // Directions for ship orientation
     private final Point[] directions = {
             new Point(0, 1),  // right
@@ -99,7 +96,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                     for (int k = 0; k < shipSize; k++) {
                         int x = i;
                         int y = j + k;
-                        
+
                         if (boardState[x][y] == cellState.MISS || boardState[x][y] == cellState.USELESS) {
                             canPlace = false;
                             break;
@@ -148,7 +145,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                     for (int k = 0; k < shipSize; k++) {
                         int x = i + k;
                         int y = j;
-                        
+
                         if (boardState[x][y] == cellState.MISS || boardState[x][y] == cellState.USELESS) {
                             canPlace = false;
                             break;
@@ -344,18 +341,16 @@ public class SikkemaDileoBot implements BattleShipBot {
                 s.setSunk(true);
                 s.setShipOrientation(o);
                 sunkShipNeighbors = s.getNeighbors();
-                
+
                 // Update remaining ship sizes
                 remainingShipSizes.remove(Integer.valueOf(s.getSize()));
                 break;
             }
         }
-        if (debug) System.out.print("Marking cells useless next to sunk boat: ");
         for (Point n : sunkShipNeighbors) {
             if (isValid(n) && boardState[n.x][n.y] != cellState.HIT) {
                 boardState[n.x][n.y] = cellState.USELESS;
                 uselessLocations[n.x][n.y] = true;
-                if (debug) System.out.print("X: " + n.x + " Y: " + n.y);
             }
         }
     }
@@ -478,16 +473,13 @@ public class SikkemaDileoBot implements BattleShipBot {
         shotsFired[shot.x][shot.y] = true;
         boolean hit = battleShip.shoot(shot);
         boardState[shot.x][shot.y] = hit ? cellState.HIT : cellState.MISS;
-        debugPrint("Shot at (" + shot.x + "," + shot.y + "): " + (hit ? "HIT" : "MISS"));
 
         // Update game state
         if (hit) {
             hitList.add(shot);
             consecutiveHits++;
-            debugPrint("Consecutive hits: " + consecutiveHits);
 
             if (battleShip.numberOfShipsSunk() > previousSunkShips) {
-                debugPrint("Ship sunk! Resetting target queue and state");
                 findShipCoordinates(shot);
                 targetQueue.clear();
                 lastHit = null;
@@ -495,7 +487,6 @@ public class SikkemaDileoBot implements BattleShipBot {
                 consecutiveHits = 0;
                 markSunkShipCells();
             } else if (lastHit == null) {
-                debugPrint("First hit, adding adjacent points to queue");
                 lastHit = shot;
                 // Add adjacent cells to queue in order of probability
                 Point[] orderedDirs = {
@@ -520,25 +511,21 @@ public class SikkemaDileoBot implements BattleShipBot {
                 // Update ship orientation
                 if (shot.x == lastHit.x) {
                     hitOrientation = orientation.HORIZONTAL;
-                    debugPrint("Ship orientation determined: HORIZONTAL");
                     markPerpendicularCellsUseless(shot, true);
                 } else if (shot.y == lastHit.y) {
                     hitOrientation = orientation.VERTICAL;
-                    debugPrint("Ship orientation determined: VERTICAL");
                     markPerpendicularCellsUseless(shot, false);
                 }
                 if (hitOrientation != orientation.UNKNOWN) {
                     Point nextCell = getNextCellInDirection(shot);
                     if (nextCell != null) {
                         targetQueue.add(nextCell);
-                        debugPrint("Added next cell in direction to queue: (" + nextCell.x + "," + nextCell.y + ")");
                     }
                 }
                 lastHit = shot;
             }
         } else {
             if (consecutiveHits > 0 && hitOrientation != orientation.UNKNOWN) {
-                debugPrint("Miss after hits, trying opposite direction");
                 targetQueue.clear();
                 Point firstHit = hitList.get(hitList.size() - consecutiveHits);
                 Point oppositeDir = getOppositeDirection(firstHit);
@@ -550,7 +537,6 @@ public class SikkemaDileoBot implements BattleShipBot {
                 hitOrientation = orientation.UNKNOWN;
             }
         }
-        if (debug) printBoardState();
     }
 
     /**
@@ -695,7 +681,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         boardState[p.x][p.y] = cellState.USELESS;
         uselessLocations[p.x][p.y] = true;
     }
-    
+
     /**
      * Overloaded version that takes x,y coordinates directly
      */
@@ -729,41 +715,12 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     * Prints the current state of the board to debug.
-     * Hits - (*), Misses - (m), Useless - (X).
-     */
-    public void printBoardState() {
-        System.out.println("Current Board State:");
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                cellState cell = boardState[i][j];
-                if (cell == null || cell == cellState.UNKNOWN) System.out.print("• ");
-                else {
-                    switch (cell) {
-                        case HIT:
-                            System.out.print("* ");
-                            break;
-                        case MISS:
-                            System.out.print("m ");
-                            break;
-                        case USELESS:
-                            System.out.print("X ");
-                            break;
-                    }
-                }
-            }
-            System.out.println();
-        }
-        System.out.println();
-    }
-
-    /**
      * Checks if a given point is within the board boundaries.
      */
     private boolean isValid(Point point) {
         return point.x >= 0 && point.x < size && point.y >= 0 && point.y < size;
     }
-    
+
     /**
      * Overloaded version that takes x,y coordinates directly
      */
@@ -777,13 +734,6 @@ public class SikkemaDileoBot implements BattleShipBot {
     @Override
     public String getAuthors() {
         return "Nathan Sikkema and Brendan Dileo";
-    }
-
-    /**
-     * Prints debug messages if debug mode is enabled.
-     */
-    private void debugPrint(String message) {
-        if (debug) System.out.println("[DEBUG] " + message);
     }
 
     /**
