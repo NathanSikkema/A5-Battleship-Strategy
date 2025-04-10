@@ -1,3 +1,5 @@
+
+
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
 
@@ -28,10 +30,11 @@ public class SikkemaDileoBot implements BattleShipBot {
     // Game state tracking variables
     private int size;
     private BattleShip2 battleShip;
-    // Changed HashSet with boolean arrays for faster lookups
+    // Changed HashSet to use boolean arrays for faster lookups
     private boolean[][] shotsFired;
     private boolean[][] uselessLocations;
     private Queue<Point> targetQueue;
+    // Array of points to track list of hits
     private Point[] hitList;
     private int hitListSize;
     private cellState[][] boardState;
@@ -39,9 +42,8 @@ public class SikkemaDileoBot implements BattleShipBot {
     private Point lastHit;
     private int consecutiveHits;
     private ShipStatus[] shipStatuses;
-    // Track remaining ship sizes for faster probability calculation
+    // Track the remaining ship sizes for faster probability calculation
     private ArrayList<Integer> remainingShipSizes;
-
 
     // Point objects to be resued - garbage collection ?? Check this: https://stackoverflow.com/questions/40498096/is-everything-null-in-java-eligible-for-garbage-collection
     private Point tempPoint = new Point();
@@ -58,6 +60,8 @@ public class SikkemaDileoBot implements BattleShipBot {
     /**
      * Initializes the bot with a new game instance.
      * Sets up all tracking variables and initializes the board state.
+     *
+     * @param battleShip2 The Battleship2 object from the Battleship API needed to run the game.
      */
     @Override
     public void initialize(BattleShip2 battleShip2) {
@@ -104,19 +108,24 @@ public class SikkemaDileoBot implements BattleShipBot {
      * Builds a probability map for potential ship locations.
      *
      * shipSizes unused?
+     *
+     * @param shipSizes Array containijg the remaining ships.
+     * @param hitList Array of points containing cells that have been hit.
+     * @param boardState An array representing the current state of the board.
+     * @return Array containing probability map.
      */
     private int[][] buildProbabilityMap(int[] shipSizes, Point[] hitList, cellState[][] boardState) {
         // Clear the probability map more efficiently using Arrays.fill
         for (int[] row : probabilityMap) {
             Arrays.fill(row, 0);
         }
-        
+
         // Store hitList size to avoid recalculation
         boolean isEarlyGame = hitListSize < 20;
-        
+
         // Convert ArrayList to array for faster access
         int[] remainingShipsArray = remainingShipSizes.stream().mapToInt(Integer::intValue).toArray();
-        
+
         // Pre-calculate ship size multipliers to avoid repeated calculations
         int[] baseScores = new int[remainingShipsArray.length];
         for (int i = 0; i < remainingShipsArray.length; i++) {
@@ -126,21 +135,21 @@ public class SikkemaDileoBot implements BattleShipBot {
                 baseScores[i] += shipSize * 5;
             }
         }
-        
+
         // Use local reference to avoid field access overhead
         cellState[][] state = boardState;
-        
+
         // Calculate base probabilities with higher weights for larger ships
         for (int i = 0; i < remainingShipsArray.length; i++) {
             int shipSize = remainingShipsArray[i];
             int baseScore = baseScores[i];
-            
+
             // Horizontal placements
             for (int row = 0; row < boardSize; row++) {
                 for (int col = 0; col <= boardSize - shipSize; col++) {
                     boolean canPlace = true;
                     int hitCount = 0;
-                    
+
                     // Unroll loop for small ship sizes
                     if (shipSize <= 5) {
                         // Check first cell
@@ -154,7 +163,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                 hitCount++;
                                 break;
                         }
-                        
+
                         // Check remaining cells if needed
                         if (canPlace && shipSize > 1) {
                             cellState cell1 = state[row][col + 1];
@@ -167,7 +176,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                     hitCount++;
                                     break;
                             }
-                            
+
                             if (canPlace && shipSize > 2) {
                                 cellState cell2 = state[row][col + 2];
                                 switch (cell2) {
@@ -179,7 +188,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                         hitCount++;
                                         break;
                                 }
-                                
+
                                 if (canPlace && shipSize > 3) {
                                     cellState cell3 = state[row][col + 3];
                                     switch (cell3) {
@@ -191,7 +200,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                             hitCount++;
                                             break;
                                     }
-                                    
+
                                     if (canPlace && shipSize > 4) {
                                         cellState cell4 = state[row][col + 4];
                                         switch (cell4) {
@@ -223,12 +232,12 @@ public class SikkemaDileoBot implements BattleShipBot {
                             if (!canPlace) break;
                         }
                     }
-                    
+
                     // Adds probability scores
                     if (canPlace) {
                         int score = baseScore + hitCount * 20;
-                        
-                        // Unroll the loop for smaller ship sizes
+
+                        // Unroll the loop for small ship sizes
                         if (shipSize <= 5) {
                             probabilityMap[row][col] += score;
                             if (shipSize > 1) probabilityMap[row][col + 1] += score;
@@ -243,13 +252,13 @@ public class SikkemaDileoBot implements BattleShipBot {
                     }
                 }
             }
-            
+
             // Vertical placements
             for (int row = 0; row <= boardSize - shipSize; row++) {
                 for (int col = 0; col < boardSize; col++) {
                     boolean canPlace = true;
                     int hitCount = 0;
-                    
+
                     // Unroll loop for small ship sizes
                     if (shipSize <= 5) {
                         // Check first cell
@@ -263,7 +272,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                 hitCount++;
                                 break;
                         }
-                        
+
                         // Check remaining cells if needed
                         if (canPlace && shipSize > 1) {
                             cellState cell1 = state[row + 1][col];
@@ -276,7 +285,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                     hitCount++;
                                     break;
                             }
-                            
+
                             if (canPlace && shipSize > 2) {
                                 cellState cell2 = state[row + 2][col];
                                 switch (cell2) {
@@ -288,7 +297,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                         hitCount++;
                                         break;
                                 }
-                                
+
                                 if (canPlace && shipSize > 3) {
                                     cellState cell3 = state[row + 3][col];
                                     switch (cell3) {
@@ -300,7 +309,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                                             hitCount++;
                                             break;
                                     }
-                                    
+
                                     if (canPlace && shipSize > 4) {
                                         cellState cell4 = state[row + 4][col];
                                         switch (cell4) {
@@ -332,11 +341,11 @@ public class SikkemaDileoBot implements BattleShipBot {
                             if (!canPlace) break;
                         }
                     }
-                    
+
                     // Add probability scores
                     if (canPlace) {
                         int score = baseScore + hitCount * 20;
-                        
+
                         // Unroll loop for small ship sizes
                         if (shipSize <= 5) {
                             probabilityMap[row][col] += score;
@@ -353,13 +362,13 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
             }
         }
-        
+
         // Optimize adjacent cell bonus calculation by avoiding diagonal checks
         for (int i = 0; i < hitListSize; i++) {
             Point hit = hitList[i];
             int hitX = hit.x;
             int hitY = hit.y;
-            
+
             // Check horizontal neighbors
             for (int dy = -1; dy <= 1; dy += 2) {
                 int newY = hitY + dy;
@@ -370,7 +379,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                     }
                 }
             }
-            
+
             // Check vertical neighbors
             for (int dx = -1; dx <= 1; dx += 2) {
                 int newX = hitX + dx;
@@ -382,7 +391,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
             }
         }
-        
+
         // Optimize miss penalty calculation by avoiding diagonal checks
         for (int i = 0; i < boardSize; i++) {
             for (int j = 0; j < boardSize; j++) {
@@ -392,29 +401,32 @@ public class SikkemaDileoBot implements BattleShipBot {
                         int newY = j + dy;
                         if (newY >= 0 && newY < boardSize && state[i][newY] == cellState.UNKNOWN) {
                             // Use ternary instead of Math.max
-                            probabilityMap[i][newY] = probabilityMap[i][newY] > 10 ? 
+                            probabilityMap[i][newY] = probabilityMap[i][newY] > 10 ?
                                 probabilityMap[i][newY] - 10 : 0;
                         }
                     }
-                    
+
                     // Check vertical neighbors
                     for (int dx = -1; dx <= 1; dx += 2) {
                         int newX = i + dx;
                         if (newX >= 0 && newX < boardSize && state[newX][j] == cellState.UNKNOWN) {
                             // Use ternary instead of Math.max
-                            probabilityMap[newX][j] = probabilityMap[newX][j] > 10 ? 
+                            probabilityMap[newX][j] = probabilityMap[newX][j] > 10 ?
                                 probabilityMap[newX][j] - 10 : 0;
                         }
                     }
                 }
             }
         }
-        
+
         return probabilityMap;
     }
 
     /**
      * Finds the cell with the highest probability score that hasn't been shot at.
+     *
+     * @param map
+     * @return
      */
     private Point findHighestProbability(int[][] map) {
         int highestProbability = -1;
@@ -450,6 +462,8 @@ public class SikkemaDileoBot implements BattleShipBot {
     /**
      * Determines the coordinates of a ship based on a hit.
      * Tracks the ship's orientation and all cells that are part of it.
+     *
+     * @param p
      */
     private void findShipCoordinates(Point p) {
         ArrayList<Point> shipCoordinates = new ArrayList<>();
@@ -524,6 +538,9 @@ public class SikkemaDileoBot implements BattleShipBot {
     /**
      * Updates the status of a ship when it's sunk.
      * Marks adjacent cells as useless and updates ship tracking.
+     *
+     * @param shipCoordinates
+     * @param o
      */
     private void updateShipStatus(ArrayList<Point> shipCoordinates, orientation o) {
         ArrayList<Point> sunkShipNeighbors = new ArrayList<>();
@@ -886,6 +903,9 @@ public class SikkemaDileoBot implements BattleShipBot {
 
     /**
      * Overloaded version that takes x,y coordinates directly
+     *
+     * @param x
+     * @param y
      */
     private void markUseless(int x, int y) {
         boardState[x][y] = cellState.USELESS;
@@ -895,6 +915,9 @@ public class SikkemaDileoBot implements BattleShipBot {
     /**
      * Marks cells perpendicular to the current ship orientation as useless.
      * Used to narrow down posible ship locations.
+     *
+     * @param shot
+     * @param horizontal
      */
     private void markPerpendicularCellsUseless(Point shot, boolean horizontal) {
         if (horizontal) {
@@ -981,15 +1004,29 @@ public class SikkemaDileoBot implements BattleShipBot {
         HIT, MISS, UNKNOWN, USELESS
     }
 
-    // Update other methods to use hitList array instead of ArrayList
+    /**
+     * Update other methods to use hitList array instead of ArrayList
+     * Optimizatiuon?
+     * @param p
+     */
     private void addToHitList(Point p) {
         hitList[hitListSize++] = p;
     }
 
+    /**
+     *
+     * TODO: UNUSED BUT KEEP ---> GARBAGE*
+     * @return
+     */
     private Point getLastHit() {
         return hitListSize > 0 ? hitList[hitListSize - 1] : null;
     }
 
+    /**
+     *
+     * @param index
+     * @return
+     */
     private Point getHitAt(int index) {
         return index < hitListSize ? hitList[index] : null;
     }
