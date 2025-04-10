@@ -1,6 +1,5 @@
 import battleship.BattleShip2;
-
-import java.awt.*;
+import java.awt.Point;
 import java.util.ArrayList;
 
 public class ShipStatus {
@@ -50,8 +49,9 @@ public class ShipStatus {
     public void setHitCoordinates(ArrayList<Point> hitCoordinates) {
         hitCoordsCount = hitCoordinates.size();
         for (int i = 0; i < hitCoordsCount; i++) {
-            hitCoordsArray[i][0] = hitCoordinates.get(i).x;
-            hitCoordsArray[i][1] = hitCoordinates.get(i).y;
+            Point p = hitCoordinates.get(i);
+            hitCoordsArray[i][0] = p.x;
+            hitCoordsArray[i][1] = p.y;
         }
     }
 
@@ -86,9 +86,10 @@ public class ShipStatus {
             shipCells[hitCoordsArray[i][0]][hitCoordsArray[i][1]] = true;
         }
         
-        // Create ArrayList with initial capacity to avoid resizing
-        ArrayList<Point> result = new ArrayList<>(hitCoordsCount * 4);
+        // Reset neighbor count
+        neighborCount = 0;
         
+        // Reuse neighbor cache points
         for (int i = 0; i < hitCoordsCount; i++) {
             int x = hitCoordsArray[i][0];
             int y = hitCoordsArray[i][1];
@@ -98,12 +99,20 @@ public class ShipStatus {
                 int newY = y + DY[j];
                 
                 if (isValid(newX, newY) && !shipCells[newX][newY]) {
-                    // Create new Point directly
-                    result.add(new Point(newX, newY));
+                    // Reuse point from cache
+                    Point p = neighborCache[neighborCount++];
+                    p.x = newX;
+                    p.y = newY;
                 }
             }
         }
-
+        
+        // Create ArrayList with exact size needed
+        ArrayList<Point> result = new ArrayList<>(neighborCount);
+        for (int i = 0; i < neighborCount; i++) {
+            result.add(new Point(neighborCache[i].x, neighborCache[i].y));
+        }
+        
         return result;
     }
 
