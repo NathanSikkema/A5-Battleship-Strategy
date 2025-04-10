@@ -1,5 +1,3 @@
-
-
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
 
@@ -115,255 +113,82 @@ public class SikkemaDileoBot implements BattleShipBot {
      * @return Array containing probability map.
      */
     private int[][] buildProbabilityMap(int[] shipSizes, Point[] hitList, cellState[][] boardState) {
-        // Clear the probability map more efficiently using Arrays.fill
+        // Clear the probability map using Arrays.fill
         for (int[] row : probabilityMap) {
             Arrays.fill(row, 0);
         }
 
-        // Store hitList size to avoid recalculation
-        boolean isEarlyGame = hitListSize < 20;
+        // Pre-calculate ship size multipliers and cache board size
+        final int boardSize = this.boardSize;
+        final int[] baseScores = new int[remainingShipSizes.size()];
+        final int hitListSize = this.hitListSize;
 
-        // Convert ArrayList to array for faster access
-        int[] remainingShipsArray = remainingShipSizes.stream().mapToInt(Integer::intValue).toArray();
-
-        // Pre-calculate ship size multipliers to avoid repeated calculations
-        int[] baseScores = new int[remainingShipsArray.length];
-        for (int i = 0; i < remainingShipsArray.length; i++) {
-            int shipSize = remainingShipsArray[i];
-            baseScores[i] = shipSize * 10;
-            if (isEarlyGame) {
-                baseScores[i] += shipSize * 5;
-            }
+        // Precompute base scores
+        for (int i = 0; i < remainingShipSizes.size(); i++) {
+            int shipSize = remainingShipSizes.get(i);
+            baseScores[i] = shipSize * 10 + (hitListSize < 20 ? shipSize * 5 : 0);
         }
 
-        // Use local reference to avoid field access overhead
-        cellState[][] state = boardState;
-
-        // Calculate base probabilities with higher weights for larger ships
-        for (int i = 0; i < remainingShipsArray.length; i++) {
-            int shipSize = remainingShipsArray[i];
+        // Calculate base probabilities
+        for (int i = 0; i < remainingShipSizes.size(); i++) {
+            int shipSize = remainingShipSizes.get(i);
             int baseScore = baseScores[i];
 
             // Horizontal placements
             for (int row = 0; row < boardSize; row++) {
+                cellState[] rowState = boardState[row];
                 for (int col = 0; col <= boardSize - shipSize; col++) {
                     boolean canPlace = true;
                     int hitCount = 0;
 
-                    // Unroll loop for small ship sizes
-                    if (shipSize <= 5) {
-                        // Check first cell
-                        cellState cell0 = state[row][col];
-                        switch (cell0) {
-                            case MISS:
-                            case USELESS:
-                                canPlace = false;
-                                break;
-                            case HIT:
-                                hitCount++;
-                                break;
+                    for (int k = 0; k < shipSize; k++) {
+                        cellState cell = rowState[col + k];
+                        if (cell == cellState.MISS || cell == cellState.USELESS) {
+                            canPlace = false;
+                            break;
                         }
-
-                        // Check remaining cells if needed
-                        if (canPlace && shipSize > 1) {
-                            cellState cell1 = state[row][col + 1];
-                            switch (cell1) {
-                                case MISS:
-                                case USELESS:
-                                    canPlace = false;
-                                    break;
-                                case HIT:
-                                    hitCount++;
-                                    break;
-                            }
-
-                            if (canPlace && shipSize > 2) {
-                                cellState cell2 = state[row][col + 2];
-                                switch (cell2) {
-                                    case MISS:
-                                    case USELESS:
-                                        canPlace = false;
-                                        break;
-                                    case HIT:
-                                        hitCount++;
-                                        break;
-                                }
-
-                                if (canPlace && shipSize > 3) {
-                                    cellState cell3 = state[row][col + 3];
-                                    switch (cell3) {
-                                        case MISS:
-                                        case USELESS:
-                                            canPlace = false;
-                                            break;
-                                        case HIT:
-                                            hitCount++;
-                                            break;
-                                    }
-
-                                    if (canPlace && shipSize > 4) {
-                                        cellState cell4 = state[row][col + 4];
-                                        switch (cell4) {
-                                            case MISS:
-                                            case USELESS:
-                                                canPlace = false;
-                                                break;
-                                            case HIT:
-                                                hitCount++;
-                                                break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Fallback for larger ships
-                        for (int k = 0; k < shipSize; k++) {
-                            cellState cell = state[row][col + k];
-                            switch (cell) {
-                                case MISS:
-                                case USELESS:
-                                    canPlace = false;
-                                    break;
-                                case HIT:
-                                    hitCount++;
-                                    break;
-                            }
-                            if (!canPlace) break;
-                        }
+                        if (cell == cellState.HIT) hitCount++;
                     }
 
-                    // Adds probability scores
                     if (canPlace) {
                         int score = baseScore + hitCount * 20;
-
-                        // Unroll the loop for small ship sizes
-                        if (shipSize <= 5) {
-                            probabilityMap[row][col] += score;
-                            if (shipSize > 1) probabilityMap[row][col + 1] += score;
-                            if (shipSize > 2) probabilityMap[row][col + 2] += score;
-                            if (shipSize > 3) probabilityMap[row][col + 3] += score;
-                            if (shipSize > 4) probabilityMap[row][col + 4] += score;
-                        } else {
-                            for (int k = 0; k < shipSize; k++) {
-                                probabilityMap[row][col + k] += score;
-                            }
+                        int[] probRow = probabilityMap[row];
+                        for (int k = 0; k < shipSize; k++) {
+                            probRow[col + k] += score;
                         }
                     }
                 }
             }
 
             // Vertical placements
-            for (int row = 0; row <= boardSize - shipSize; row++) {
-                for (int col = 0; col < boardSize; col++) {
+            for (int col = 0; col < boardSize; col++) {
+                for (int row = 0; row <= boardSize - shipSize; row++) {
                     boolean canPlace = true;
                     int hitCount = 0;
 
-                    // Unroll loop for small ship sizes
-                    if (shipSize <= 5) {
-                        // Check first cell
-                        cellState cell0 = state[row][col];
-                        switch (cell0) {
-                            case MISS:
-                            case USELESS:
-                                canPlace = false;
-                                break;
-                            case HIT:
-                                hitCount++;
-                                break;
+                    for (int k = 0; k < shipSize; k++) {
+                        cellState cell = boardState[row + k][col];
+                        if (cell == cellState.MISS || cell == cellState.USELESS) {
+                            canPlace = false;
+                            break;
                         }
-
-                        // Check remaining cells if needed
-                        if (canPlace && shipSize > 1) {
-                            cellState cell1 = state[row + 1][col];
-                            switch (cell1) {
-                                case MISS:
-                                case USELESS:
-                                    canPlace = false;
-                                    break;
-                                case HIT:
-                                    hitCount++;
-                                    break;
-                            }
-
-                            if (canPlace && shipSize > 2) {
-                                cellState cell2 = state[row + 2][col];
-                                switch (cell2) {
-                                    case MISS:
-                                    case USELESS:
-                                        canPlace = false;
-                                        break;
-                                    case HIT:
-                                        hitCount++;
-                                        break;
-                                }
-
-                                if (canPlace && shipSize > 3) {
-                                    cellState cell3 = state[row + 3][col];
-                                    switch (cell3) {
-                                        case MISS:
-                                        case USELESS:
-                                            canPlace = false;
-                                            break;
-                                        case HIT:
-                                            hitCount++;
-                                            break;
-                                    }
-
-                                    if (canPlace && shipSize > 4) {
-                                        cellState cell4 = state[row + 4][col];
-                                        switch (cell4) {
-                                            case MISS:
-                                            case USELESS:
-                                                canPlace = false;
-                                                break;
-                                            case HIT:
-                                                hitCount++;
-                                                break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Fallback for larger ships
-                        for (int k = 0; k < shipSize; k++) {
-                            cellState cell = state[row + k][col];
-                            switch (cell) {
-                                case MISS:
-                                case USELESS:
-                                    canPlace = false;
-                                    break;
-                                case HIT:
-                                    hitCount++;
-                                    break;
-                            }
-                            if (!canPlace) break;
-                        }
+                        if (cell == cellState.HIT) hitCount++;
                     }
 
-                    // Add probability scores
                     if (canPlace) {
                         int score = baseScore + hitCount * 20;
-
-                        // Unroll loop for small ship sizes
-                        if (shipSize <= 5) {
-                            probabilityMap[row][col] += score;
-                            if (shipSize > 1) probabilityMap[row + 1][col] += score;
-                            if (shipSize > 2) probabilityMap[row + 2][col] += score;
-                            if (shipSize > 3) probabilityMap[row + 3][col] += score;
-                            if (shipSize > 4) probabilityMap[row + 4][col] += score;
-                        } else {
-                            for (int k = 0; k < shipSize; k++) {
-                                probabilityMap[row + k][col] += score;
-                            }
+                        for (int k = 0; k < shipSize; k++) {
+                            probabilityMap[row + k][col] += score;
                         }
                     }
                 }
             }
         }
 
-        // Optimize adjacent cell bonus calculation by avoiding diagonal checks
+        // Optimize adjacent cell bonus calculation
+        final Point lastHit = this.lastHit;
+        final orientation hitOrientation = this.hitOrientation;
+
         for (int i = 0; i < hitListSize; i++) {
             Point hit = hitList[i];
             int hitX = hit.x;
@@ -372,7 +197,7 @@ public class SikkemaDileoBot implements BattleShipBot {
             // Check horizontal neighbors
             for (int dy = -1; dy <= 1; dy += 2) {
                 int newY = hitY + dy;
-                if (newY >= 0 && newY < boardSize && state[hitX][newY] == cellState.UNKNOWN) {
+                if (newY >= 0 && newY < boardSize && boardState[hitX][newY] == cellState.UNKNOWN) {
                     probabilityMap[hitX][newY] += 30;
                     if (lastHit != null && hitOrientation == orientation.HORIZONTAL) {
                         probabilityMap[hitX][newY] += 50;
@@ -383,37 +208,10 @@ public class SikkemaDileoBot implements BattleShipBot {
             // Check vertical neighbors
             for (int dx = -1; dx <= 1; dx += 2) {
                 int newX = hitX + dx;
-                if (newX >= 0 && newX < boardSize && state[newX][hitY] == cellState.UNKNOWN) {
+                if (newX >= 0 && newX < boardSize && boardState[newX][hitY] == cellState.UNKNOWN) {
                     probabilityMap[newX][hitY] += 30;
                     if (lastHit != null && hitOrientation == orientation.VERTICAL) {
                         probabilityMap[newX][hitY] += 50;
-                    }
-                }
-            }
-        }
-
-        // Optimize miss penalty calculation by avoiding diagonal checks
-        for (int i = 0; i < boardSize; i++) {
-            for (int j = 0; j < boardSize; j++) {
-                if (state[i][j] == cellState.MISS) {
-                    // Check horizontal neighbors
-                    for (int dy = -1; dy <= 1; dy += 2) {
-                        int newY = j + dy;
-                        if (newY >= 0 && newY < boardSize && state[i][newY] == cellState.UNKNOWN) {
-                            // Use ternary instead of Math.max
-                            probabilityMap[i][newY] = probabilityMap[i][newY] > 10 ?
-                                probabilityMap[i][newY] - 10 : 0;
-                        }
-                    }
-
-                    // Check vertical neighbors
-                    for (int dx = -1; dx <= 1; dx += 2) {
-                        int newX = i + dx;
-                        if (newX >= 0 && newX < boardSize && state[newX][j] == cellState.UNKNOWN) {
-                            // Use ternary instead of Math.max
-                            probabilityMap[newX][j] = probabilityMap[newX][j] > 10 ?
-                                probabilityMap[newX][j] - 10 : 0;
-                        }
                     }
                 }
             }
@@ -432,19 +230,25 @@ public class SikkemaDileoBot implements BattleShipBot {
         int highestProbability = -1;
         int bestX = -1;
         int bestY = -1;
-
-        // Use local references to avoid repeated field access
-        boolean[][] localShotsFired = this.shotsFired;
-        boolean[][] localUselessLocations = this.uselessLocations;
+        final int size = this.size;
+        final boolean[][] shotsFired = this.shotsFired;
+        final boolean[][] uselessLocations = this.uselessLocations;
 
         // Process in blocks for better cache utilization
-        final int BLOCK_SIZE = 4;
+        final int BLOCK_SIZE = 8; // Increased block size for better cache utilization
         for (int i = 0; i < size; i += BLOCK_SIZE) {
             for (int j = 0; j < size; j += BLOCK_SIZE) {
-                for (int bi = i; bi < Math.min(i + BLOCK_SIZE, size); bi++) {
-                    for (int bj = j; bj < Math.min(j + BLOCK_SIZE, size); bj++) {
-                        if (!localShotsFired[bi][bj] && !localUselessLocations[bi][bj]) {
-                            int prob = map[bi][bj];
+                int endI = Math.min(i + BLOCK_SIZE, size);
+                int endJ = Math.min(j + BLOCK_SIZE, size);
+
+                for (int bi = i; bi < endI; bi++) {
+                    boolean[] shotsRow = shotsFired[bi];
+                    boolean[] uselessRow = uselessLocations[bi];
+                    int[] mapRow = map[bi];
+
+                    for (int bj = j; bj < endJ; bj++) {
+                        if (!shotsRow[bj] && !uselessRow[bj]) {
+                            int prob = mapRow[bj];
                             if (prob > highestProbability) {
                                 highestProbability = prob;
                                 bestX = bi;
@@ -581,17 +385,15 @@ public class SikkemaDileoBot implements BattleShipBot {
         Point shot = null;
         int previousSunkShips = battleShip.numberOfShipsSunk();
 
-        // Build probability map first
+        // Build probability map first      -        TODO: Should we only build it if needed?
         int[][] probabilityMap = buildProbabilityMap(battleShip.getShipSizes(), hitList, boardState);
 
         // If we have a hit and know the orientation, prioritize completing the ship
         if (lastHit != null && hitOrientation != orientation.UNKNOWN) {
-            // Try to find the next cell in the ship's direction
             Point nextCell = getNextCellInDirection(lastHit);
             if (nextCell != null && !shotsFired[nextCell.x][nextCell.y] && !uselessLocations[nextCell.x][nextCell.y]) {
                 shot = nextCell;
             } else {
-                // If we can't continue in that direction, try the opposite direction
                 Point oppositeCell = getOppositeDirection(lastHit);
                 if (oppositeCell != null && !shotsFired[oppositeCell.x][oppositeCell.y] && !uselessLocations[oppositeCell.x][oppositeCell.y]) {
                     shot = oppositeCell;
@@ -601,23 +403,21 @@ public class SikkemaDileoBot implements BattleShipBot {
 
         // If no shot from completing a ship, check target queue against probability map
         if (shot == null && !targetQueue.isEmpty()) {
-            // Sort the queue by probability - limit to top 10 cells for better performance
-            ArrayList<Point> sortedQueue = new ArrayList<>(Math.min(targetQueue.size(), 10));
+            Point[] sortedQueue = new Point[Math.min(targetQueue.size(), 10)];
+            int index = 0;
             for (Point p : targetQueue) {
                 if (!shotsFired[p.x][p.y] && !uselessLocations[p.x][p.y]) {
-                    sortedQueue.add(p);
-                    if (sortedQueue.size() >= 10) break;
+                    sortedQueue[index++] = p;
+                    if (index >= 10) break;
                 }
             }
 
             // Sort by probability
-            sortedQueue.sort((a, b) -> Integer.compare(
-                    probabilityMap[b.x][b.y], probabilityMap[a.x][a.y]
-            ));
+            Arrays.sort(sortedQueue, 0, index, (a, b) -> Integer.compare(probabilityMap[b.x][b.y], probabilityMap[a.x][a.y]));
 
             // Take the highest-probability shot
-            if (!sortedQueue.isEmpty()) {
-                shot = sortedQueue.get(0);
+            if (index > 0) {
+                shot = sortedQueue[0];
                 targetQueue.remove(shot);
             }
         }
@@ -627,47 +427,7 @@ public class SikkemaDileoBot implements BattleShipBot {
             shot = findHighestProbability(probabilityMap);
         }
 
-        // If still no shot, use a more efficient search pattern optimized for the specific ship sizes
-        if (shot == null) {
-            // Use a pattern optimized for the specific ship sizes (6,5,4,4,3,2)
-            // Start with a pattern that's good for finding the largest ships first
-            int[] shipSizes = battleShip.getShipSizes();
-            int maxShipSize = 0;
-            for (int size : shipSizes) {
-                if (size > maxShipSize) maxShipSize = size;
-            }
-
-            // Improved pattern for 15x15 board with ships 6,5,4,4,3,2
-            // Use a checkerboard pattern with spacing based on the largest ship
-            for (int i = 0; i < size && shot == null; i++) {
-                for (int j = 0; j < size && shot == null; j++) {
-                    // Checkerboard pattern with spacing based on largest ship
-                    // This ensures we don't miss any potential ship locations
-                    if ((i % 3 == 0 || j % 3 == 0) && (i + j) % 2 == 0) {
-                        if (!shotsFired[i][j] && !uselessLocations[i][j]) {
-                            shot = new Point(i, j);
-                        }
-                    }
-                }
-            }
-
-            // If still no shot, try a more aggressive pattern
-            if (shot == null) {
-                for (int i = 0; i < size && shot == null; i++) {
-                    for (int j = 0; j < size && shot == null; j++) {
-                        // Use a more aggressive pattern that covers more of the board
-                        // Prioritize cells that are more likely to contain ships
-                        if ((i + j) % 2 == 0) {
-                            if (!shotsFired[i][j] && !uselessLocations[i][j]) {
-                                shot = new Point(i, j);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Safety check - if still no shot, find any unshot cell
+        // If still no shot, use a more efficient search pattern
         if (shot == null) {
             for (int i = 0; i < size && shot == null; i++) {
                 for (int j = 0; j < size && shot == null; j++) {
@@ -678,26 +438,17 @@ public class SikkemaDileoBot implements BattleShipBot {
             }
         }
 
-        // Final safety check - if still no shot, use a default position
-        if (shot == null) {
-            // This should never happen, but just in case
-            shot = new Point(0, 0);
-        }
-
         // Fire the shot
         shotsFired[shot.x][shot.y] = true;
         boolean hit = battleShip.shoot(shot);
         boardState[shot.x][shot.y] = hit ? cellState.HIT : cellState.MISS;
-        debugPrint("Shot at (" + shot.x + "," + shot.y + "): " + (hit ? "HIT" : "MISS"));
 
         // Update game state
         if (hit) {
             addToHitList(shot);
             consecutiveHits++;
-            debugPrint("Consecutive hits: " + consecutiveHits);
 
             if (battleShip.numberOfShipsSunk() > previousSunkShips) {
-                debugPrint("Ship sunk! Resetting target queue and state");
                 findShipCoordinates(shot);
                 targetQueue.clear();
                 lastHit = null;
@@ -705,50 +456,34 @@ public class SikkemaDileoBot implements BattleShipBot {
                 consecutiveHits = 0;
                 markSunkShipCells();
             } else if (lastHit == null) {
-                debugPrint("First hit, adding adjacent points to queue");
                 lastHit = shot;
-                // Add adjacent cells to queue in order of probability
-                Point[] orderedDirs = {
-                        new Point(0, 1),  // right
-                        new Point(0, -1), // left
-                        new Point(1, 0),  // down
-                        new Point(-1, 0)  // up
-                };
-
-                // Add neighbors in order of probability
-                for (Point dir : orderedDirs) {
+                for (Point dir : directions) {
                     int newX = shot.x + dir.x;
                     int newY = shot.y + dir.y;
                     if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY]) {
-                        // Only add if it has a reasonable probability
                         if (probabilityMap[newX][newY] > 0) {
                             targetQueue.add(new Point(newX, newY));
                         }
                     }
                 }
             } else {
-                // Update ship orientation
                 if (shot.x == lastHit.x) {
                     hitOrientation = orientation.HORIZONTAL;
-                    debugPrint("Ship orientation determined: HORIZONTAL");
                     markPerpendicularCellsUseless(shot, true);
                 } else if (shot.y == lastHit.y) {
                     hitOrientation = orientation.VERTICAL;
-                    debugPrint("Ship orientation determined: VERTICAL");
                     markPerpendicularCellsUseless(shot, false);
                 }
                 if (hitOrientation != orientation.UNKNOWN) {
                     Point nextCell = getNextCellInDirection(shot);
                     if (nextCell != null) {
                         targetQueue.add(nextCell);
-                        debugPrint("Added next cell in direction to queue: (" + nextCell.x + "," + nextCell.y + ")");
                     }
                 }
                 lastHit = shot;
             }
         } else {
             if (consecutiveHits > 0 && hitOrientation != orientation.UNKNOWN) {
-                debugPrint("Miss after hits, trying opposite direction");
                 targetQueue.clear();
                 Point firstHit = getHitAt(hitListSize - consecutiveHits);
                 Point oppositeDir = getOppositeDirection(firstHit);
@@ -760,7 +495,6 @@ public class SikkemaDileoBot implements BattleShipBot {
                 hitOrientation = orientation.UNKNOWN;
             }
         }
-        if (debug) printBoardState();
     }
 
     /**
@@ -829,9 +563,7 @@ public class SikkemaDileoBot implements BattleShipBot {
 
         // Clear the ship cells array
         for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                shipCells[i][j] = false;
-            }
+            Arrays.fill(shipCells[i], false);
         }
 
         // Mark ship cells
@@ -857,7 +589,6 @@ public class SikkemaDileoBot implements BattleShipBot {
         }
 
         // More aggressive marking for the largest ships
-        // For ships of size 5 or 6, mark an additional cell in each direction
         int sunkShipSize = consecutiveHits;
         if (sunkShipSize >= 5) {
             for (Point p : sunkShipPoints) {

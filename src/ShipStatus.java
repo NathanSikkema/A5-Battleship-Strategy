@@ -20,6 +20,9 @@ public class ShipStatus {
     private static final int[] DX = {0, 1, 0, -1}; // right, down, left, up
     private static final int[] DY = {1, 0, -1, 0};
     
+    // Cache board size
+    private static final int BOARD_SIZE = BattleShip2.BOARD_SIZE;
+    
     public ShipStatus(int size) {
         this.sunk = false;
         this.size = size;
@@ -79,7 +82,7 @@ public class ShipStatus {
 
     public ArrayList<Point> getNeighbors() {
         // Use a boolean array instead of HashSet for better performance
-        boolean[][] shipCells = new boolean[BattleShip2.BOARD_SIZE][BattleShip2.BOARD_SIZE];
+        boolean[][] shipCells = new boolean[BOARD_SIZE][BOARD_SIZE];
         
         // Mark ship cells
         for (int i = 0; i < hitCoordsCount; i++) {
@@ -98,7 +101,7 @@ public class ShipStatus {
                 int newX = x + DX[j];
                 int newY = y + DY[j];
                 
-                if (isValid(newX, newY) && !shipCells[newX][newY]) {
+                if (newX >= 0 && newX < BOARD_SIZE && newY >= 0 && newY < BOARD_SIZE && !shipCells[newX][newY]) {
                     // Reuse point from cache
                     Point p = neighborCache[neighborCount++];
                     p.x = newX;
@@ -114,9 +117,5 @@ public class ShipStatus {
         }
         
         return result;
-    }
-
-    private boolean isValid(int x, int y) {
-        return x >= 0 && x < BattleShip2.BOARD_SIZE && y >= 0 && y < BattleShip2.BOARD_SIZE;
     }
 }
