@@ -13,6 +13,9 @@ import java.util.Queue;
 
 public class SikkemaDileoBot implements BattleShipBot {
 
+    // Debug
+    public static boolean debug = false;
+
     // Directions for ship orientation
     private final Point[] directions = {
             new Point(0, 1),  // right
@@ -39,6 +42,12 @@ public class SikkemaDileoBot implements BattleShipBot {
 
     // Reusable Point objects to reduce garbage collection
     private Point tempPoint = new Point();
+    private Point reusablePoint = new Point();
+    private Point[] neighborPoints = new Point[4];
+    
+    // Pre-allocated arrays for better performance
+    private int[][] probabilityMap;
+    private boolean[][] shipCells;
 
     /**
      * Initializes the bot with a new game instance.
@@ -58,6 +67,15 @@ public class SikkemaDileoBot implements BattleShipBot {
         lastHit = null;
         consecutiveHits = 0;
         remainingShipSizes = new ArrayList<>();
+        
+        // Initialize reusable arrays
+        probabilityMap = new int[size][size];
+        shipCells = new boolean[size][size];
+        
+        // Initialize neighbor points
+        for (int i = 0; i < 4; i++) {
+            neighborPoints[i] = new Point();
+        }
 
         // Initialize board state to UNKNOWN
         // All cells unknown to start
@@ -78,7 +96,12 @@ public class SikkemaDileoBot implements BattleShipBot {
      * Optimized version with reduced object creation.
      */
     private int[][] buildProbabilityMap(int[] shipSizes, ArrayList<Point> hitList, cellState[][] boardState) {
-        int[][] probabilityMap = new int[BattleShip2.BOARD_SIZE][BattleShip2.BOARD_SIZE];
+        // Clear the probability map
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                probabilityMap[i][j] = 0;
+            }
+        }
 
         // Calculate base probabilities with higher weights for larger ships
         for (int shipSize : remainingShipSizes) {
@@ -87,41 +110,26 @@ public class SikkemaDileoBot implements BattleShipBot {
                 for (int j = 0; j <= size - shipSize; j++) {
                     boolean canPlace = true;
                     int hitCount = 0;
-                    int consecutiveHits = 0;
-                    int maxConsecutive = 0;
-                    boolean hasGap = false;
-                    int emptySpaces = 0;
-
-                    // Check if ship can be placed and count hits
+                    
+                    // Quick check for invalid placements
                     for (int k = 0; k < shipSize; k++) {
-                        int x = i;
-                        int y = j + k;
-
-                        if (boardState[x][y] == cellState.MISS || boardState[x][y] == cellState.USELESS) {
+                        if (boardState[i][j + k] == cellState.MISS || boardState[i][j + k] == cellState.USELESS) {
                             canPlace = false;
                             break;
                         }
-                        if (boardState[x][y] == cellState.HIT) {
+                        if (boardState[i][j + k] == cellState.HIT) {
                             hitCount++;
-                            consecutiveHits++;
-                            maxConsecutive = Math.max(maxConsecutive, consecutiveHits);
-                        } else {
-                            if (consecutiveHits > 0) hasGap = true;
-                            consecutiveHits = 0;
-                            emptySpaces++;
                         }
                     }
 
-                    // Add probability scores with improved weights
+                    // Add probability scores with simplified weights
                     if (canPlace) {
-                        // More aggressive weights focusing on ship completion
-                        int baseScore = shipSize * 15 + hitCount * 25 + maxConsecutive * 35;
-                        if (hasGap) baseScore += 40; // Higher bonus for potential ship completion
-                        if (emptySpaces == 1) baseScore += 60; // Very high bonus for single empty space
-
+                        // Simplified scoring - focus on ship size and hits
+                        int baseScore = shipSize * 10 + hitCount * 20;
+                        
                         // Add early game bonus for larger ships
                         if (hitList.size() < 20) {
-                            baseScore += shipSize * 10; // Prioritize larger ships early
+                            baseScore += shipSize * 5;
                         }
 
                         for (int k = 0; k < shipSize; k++) {
@@ -136,41 +144,26 @@ public class SikkemaDileoBot implements BattleShipBot {
                 for (int j = 0; j < size; j++) {
                     boolean canPlace = true;
                     int hitCount = 0;
-                    int consecutiveHits = 0;
-                    int maxConsecutive = 0;
-                    boolean hasGap = false;
-                    int emptySpaces = 0;
-
-                    // Check if ship can be placed and count hits
+                    
+                    // Quick check for invalid placements
                     for (int k = 0; k < shipSize; k++) {
-                        int x = i + k;
-                        int y = j;
-
-                        if (boardState[x][y] == cellState.MISS || boardState[x][y] == cellState.USELESS) {
+                        if (boardState[i + k][j] == cellState.MISS || boardState[i + k][j] == cellState.USELESS) {
                             canPlace = false;
                             break;
                         }
-                        if (boardState[x][y] == cellState.HIT) {
+                        if (boardState[i + k][j] == cellState.HIT) {
                             hitCount++;
-                            consecutiveHits++;
-                            maxConsecutive = Math.max(maxConsecutive, consecutiveHits);
-                        } else {
-                            if (consecutiveHits > 0) hasGap = true;
-                            consecutiveHits = 0;
-                            emptySpaces++;
                         }
                     }
 
-                    // Add probability scores with improved weights
+                    // Add probability scores with simplified weights
                     if (canPlace) {
-                        // More aggressive weights focusing on ship completion
-                        int baseScore = shipSize * 15 + hitCount * 25 + maxConsecutive * 35;
-                        if (hasGap) baseScore += 40; // Higher bonus for potential ship completion
-                        if (emptySpaces == 1) baseScore += 60; // Very high bonus for single empty space
-
+                        // Simplified scoring - focus on ship size and hits
+                        int baseScore = shipSize * 10 + hitCount * 20;
+                        
                         // Add early game bonus for larger ships
                         if (hitList.size() < 20) {
-                            baseScore += shipSize * 10; // Prioritize larger ships early
+                            baseScore += shipSize * 5;
                         }
 
                         for (int k = 0; k < shipSize; k++) {
@@ -182,7 +175,6 @@ public class SikkemaDileoBot implements BattleShipBot {
         }
 
         // Add high bonus for cells adjacent to hits
-        // More balanced bonuses for better targeting
         for (Point hit : hitList) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
@@ -191,7 +183,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                     int newX = hit.x + dx;
                     int newY = hit.y + dy;
                     if (isValid(newX, newY) && boardState[newX][newY] == cellState.UNKNOWN) {
-                        probabilityMap[newX][newY] += 30; // Increased base bonus for adjacent cells
+                        probabilityMap[newX][newY] += 30; // Base bonus for adjacent cells
 
                         // Additional bonus if this cell could complete a ship
                         if (lastHit != null && hitOrientation != orientation.UNKNOWN) {
@@ -205,7 +197,7 @@ public class SikkemaDileoBot implements BattleShipBot {
             }
         }
 
-        // Decrease probability around misses more moderately
+        // Decrease probability around misses
         for (int i = 0; i < size; i++) {
             for (int j = 0; j < size; j++) {
                 if (boardState[i][j] == cellState.MISS) {
@@ -213,7 +205,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                         int x = i + dir.x;
                         int y = j + dir.y;
                         if (isValid(x, y) && boardState[x][y] == cellState.UNKNOWN)
-                            probabilityMap[x][y] = Math.max(0, probabilityMap[x][y] - 12); // More aggressive penalty
+                            probabilityMap[x][y] = Math.max(0, probabilityMap[x][y] - 10);
                     }
                 }
             }
@@ -226,8 +218,8 @@ public class SikkemaDileoBot implements BattleShipBot {
      * Finds the cell with the highest probability score that hasn't been shot at.
      */
     private Point findHighestProbability(int[][] map) {
-        Point bestShot = null;
         int highestProbability = -1;
+        reusablePoint.setLocation(-1, -1);
 
         for (int i = 0; i < map.length; i++) {
             for (int j = 0; j < map[i].length; j++) {
@@ -235,11 +227,12 @@ public class SikkemaDileoBot implements BattleShipBot {
 
                 if (map[i][j] > highestProbability) {
                     highestProbability = map[i][j];
-                    bestShot = new Point(i, j);
+                    reusablePoint.setLocation(i, j);
                 }
             }
         }
-        return bestShot;
+        
+        return highestProbability > 0 ? new Point(reusablePoint) : null;
     }
 
     /**
@@ -341,16 +334,18 @@ public class SikkemaDileoBot implements BattleShipBot {
                 s.setSunk(true);
                 s.setShipOrientation(o);
                 sunkShipNeighbors = s.getNeighbors();
-
+                
                 // Update remaining ship sizes
                 remainingShipSizes.remove(Integer.valueOf(s.getSize()));
                 break;
             }
         }
+        if (debug) System.out.print("Marking cells useless next to sunk boat: ");
         for (Point n : sunkShipNeighbors) {
             if (isValid(n) && boardState[n.x][n.y] != cellState.HIT) {
                 boardState[n.x][n.y] = cellState.USELESS;
                 uselessLocations[n.x][n.y] = true;
+                if (debug) System.out.print("X: " + n.x + " Y: " + n.y);
             }
         }
     }
@@ -384,26 +379,24 @@ public class SikkemaDileoBot implements BattleShipBot {
 
         // If no shot from completing a ship, check target queue against probability map
         if (shot == null && !targetQueue.isEmpty()) {
-            Point bestQueueShot = null;
-            int highestQueueProbability = -1;
-
-            // Sort the queue by probability
-            ArrayList<Point> sortedQueue = new ArrayList<>(targetQueue);
+            // Sort the queue by probability - limit to top 10 cells for better performance
+            ArrayList<Point> sortedQueue = new ArrayList<>(Math.min(targetQueue.size(), 10));
+            for (Point p : targetQueue) {
+                if (!shotsFired[p.x][p.y] && !uselessLocations[p.x][p.y]) {
+                    sortedQueue.add(p);
+                    if (sortedQueue.size() >= 10) break;
+                }
+            }
+            
+            // Sort by probability
             sortedQueue.sort((a, b) -> Integer.compare(
                     probabilityMap[b.x][b.y], probabilityMap[a.x][a.y]
             ));
-
+            
             // Take the highest-probability shot
-            for (Point queueShot : sortedQueue) {
-                if (!shotsFired[queueShot.x][queueShot.y] && !uselessLocations[queueShot.x][queueShot.y]) {
-                    bestQueueShot = queueShot;
-                    break;
-                }
-            }
-
-            if (bestQueueShot != null) {
-                shot = bestQueueShot;
-                targetQueue.remove(bestQueueShot);
+            if (!sortedQueue.isEmpty()) {
+                shot = sortedQueue.get(0);
+                targetQueue.remove(shot);
             }
         }
 
@@ -473,13 +466,16 @@ public class SikkemaDileoBot implements BattleShipBot {
         shotsFired[shot.x][shot.y] = true;
         boolean hit = battleShip.shoot(shot);
         boardState[shot.x][shot.y] = hit ? cellState.HIT : cellState.MISS;
+        debugPrint("Shot at (" + shot.x + "," + shot.y + "): " + (hit ? "HIT" : "MISS"));
 
         // Update game state
         if (hit) {
             hitList.add(shot);
             consecutiveHits++;
+            debugPrint("Consecutive hits: " + consecutiveHits);
 
             if (battleShip.numberOfShipsSunk() > previousSunkShips) {
+                debugPrint("Ship sunk! Resetting target queue and state");
                 findShipCoordinates(shot);
                 targetQueue.clear();
                 lastHit = null;
@@ -487,6 +483,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                 consecutiveHits = 0;
                 markSunkShipCells();
             } else if (lastHit == null) {
+                debugPrint("First hit, adding adjacent points to queue");
                 lastHit = shot;
                 // Add adjacent cells to queue in order of probability
                 Point[] orderedDirs = {
@@ -511,21 +508,25 @@ public class SikkemaDileoBot implements BattleShipBot {
                 // Update ship orientation
                 if (shot.x == lastHit.x) {
                     hitOrientation = orientation.HORIZONTAL;
+                    debugPrint("Ship orientation determined: HORIZONTAL");
                     markPerpendicularCellsUseless(shot, true);
                 } else if (shot.y == lastHit.y) {
                     hitOrientation = orientation.VERTICAL;
+                    debugPrint("Ship orientation determined: VERTICAL");
                     markPerpendicularCellsUseless(shot, false);
                 }
                 if (hitOrientation != orientation.UNKNOWN) {
                     Point nextCell = getNextCellInDirection(shot);
                     if (nextCell != null) {
                         targetQueue.add(nextCell);
+                        debugPrint("Added next cell in direction to queue: (" + nextCell.x + "," + nextCell.y + ")");
                     }
                 }
                 lastHit = shot;
             }
         } else {
             if (consecutiveHits > 0 && hitOrientation != orientation.UNKNOWN) {
+                debugPrint("Miss after hits, trying opposite direction");
                 targetQueue.clear();
                 Point firstHit = hitList.get(hitList.size() - consecutiveHits);
                 Point oppositeDir = getOppositeDirection(firstHit);
@@ -537,6 +538,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                 hitOrientation = orientation.UNKNOWN;
             }
         }
+        if (debug) printBoardState();
     }
 
     /**
@@ -603,24 +605,19 @@ public class SikkemaDileoBot implements BattleShipBot {
             sunkShipPoints.add(hitList.get(i));
         }
 
-        for (Point p : sunkShipPoints) {
-            // Expand the range to 2 cells for more aggressive marking
-            for (int dx = -2; dx <= 2; dx++) {
-                for (int dy = -2; dy <= 2; dy++) {
-                    if (dx == 0 && dy == 0) continue;
-                    // Skip diagonals to avoid marking too many cells
-                    if (dx != 0 && dy != 0) continue;
-                    int newX = p.x + dx;
-                    int newY = p.y + dy;
-                    if (isValid(newX, newY) && !shotsFired[newX][newY]) {
-                        markUseless(newX, newY);
-                    }
-                }
+        // Clear the ship cells array
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                shipCells[i][j] = false;
             }
         }
 
-        // Also mark cells that are too close to the sunk ship
-        // This is based on the rule that ships cannot touch horizontally or vertically
+        // Mark ship cells
+        for (Point p : sunkShipPoints) {
+            shipCells[p.x][p.y] = true;
+        }
+
+        // Mark cells around the ship
         for (Point p : sunkShipPoints) {
             // Mark cells that are adjacent to the sunk ship
             for (int dx = -1; dx <= 1; dx++) {
@@ -681,7 +678,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         boardState[p.x][p.y] = cellState.USELESS;
         uselessLocations[p.x][p.y] = true;
     }
-
+    
     /**
      * Overloaded version that takes x,y coordinates directly
      */
@@ -720,7 +717,7 @@ public class SikkemaDileoBot implements BattleShipBot {
     private boolean isValid(Point point) {
         return point.x >= 0 && point.x < size && point.y >= 0 && point.y < size;
     }
-
+    
     /**
      * Overloaded version that takes x,y coordinates directly
      */
@@ -734,6 +731,42 @@ public class SikkemaDileoBot implements BattleShipBot {
     @Override
     public String getAuthors() {
         return "Nathan Sikkema and Brendan Dileo";
+    }
+
+    /**
+     * Prints the current state of the board to debug.
+     * Hits - (*), Misses - (m), Useless - (X).
+     */
+    public void printBoardState() {
+        System.out.println("Current Board State:");
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                cellState cell = boardState[i][j];
+                if (cell == null || cell == cellState.UNKNOWN) System.out.print("• ");
+                else {
+                    switch (cell) {
+                        case HIT:
+                            System.out.print("* ");
+                            break;
+                        case MISS:
+                            System.out.print("m ");
+                            break;
+                        case USELESS:
+                            System.out.print("X ");
+                            break;
+                    }
+                }
+            }
+            System.out.println();
+        }
+        System.out.println();
+    }
+
+    /**
+     * Prints debug messages if debug mode is enabled.
+     */
+    private void debugPrint(String message) {
+        if (debug) System.out.println("[DEBUG] " + message);
     }
 
     /**

@@ -7,6 +7,8 @@ import battleship.BattleShip2;
 
 public class A5 {
     public static void main(String[] args) {
+        // Enable debug mode
+        SikkemaDileoBot.debug = false;
 
         // DO NOT add any logic to this code
         // All logic must be added to your Bot implementation
