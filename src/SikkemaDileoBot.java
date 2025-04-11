@@ -1,4 +1,3 @@
-
 import battleship.BattleShip2;
 import battleship.BattleShipBot;
 
@@ -8,32 +7,19 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Queue;
 
-/** Adapted from code by Mark Yendt (ExampleBot.java), Mohawk College, December 2021
- * @author Nathan Sikkema
- * @author Brendan Dileo */
+/**
+ Adapted from code by Mark Yendt (ExampleBot.java), Mohawk College, December 2021
 
+ @author Nathan Sikkema
+ @author Brendan Dileo */
 
 public class SikkemaDileoBot implements BattleShipBot {
-
-    // Debug
-    public static boolean debug = false;
-
-    // Directions for ship orientation
-    private final Point[] directions = {
-            new Point(0, 1),  // right
-            new Point(0, -1), // left
-            new Point(1, 0),  // down
-            new Point(-1, 0)  // up
-    };
-
-    // Game state tracking variables
+    private final Point[] directions = {new Point(0, 1), new Point(0, -1), new Point(1, 0), new Point(-1, 0)};
     private int size;
     private BattleShip2 battleShip;
-    // Changed HashSet to use boolean arrays for faster lookups
     private boolean[][] shotsFired;
     private boolean[][] uselessLocations;
     private Queue<Point> targetQueue;
-    // Array of points to track list of hits
     private Point[] hitList;
     private int hitListSize;
     private cellState[][] boardState;
@@ -41,37 +27,26 @@ public class SikkemaDileoBot implements BattleShipBot {
     private Point lastHit;
     private int consecutiveHits;
     private ShipStatus[] shipStatuses;
-    // Track the remaining ship sizes for faster probability calculation
     private ArrayList<Integer> remainingShipSizes;
-
-    // Point objects to be resued - garbage collection
-    private Point tempPoint = new Point();
-    private Point reusablePoint = new Point();
-    private Point[] neighborPoints = new Point[4];
-
-    // Pre allocating arrays for better time performance
     private int[][] probabilityMap;
     private boolean[][] shipCells;
-
-    // Cache size as local var
     private int boardSize;
 
     /**
-     * Initializes the bot with a new game instance.
-     * Sets up all tracking variables and initializes the board state.
+     * Initializes the bot with a new game instance and resets all tracking variables.
+     * Sets up the game board, initializes tracking arrays, and prepares the targeting system.
+     * This method is called once at the start of each new game.
      *
-     * @param battleShip2 The Battleship2 object from the Battleship API needed to run the game.
+     * @param battleShip2 The BattleShip game instance that this bot will interact with
      */
     @Override
     public void initialize(BattleShip2 battleShip2) {
         battleShip = battleShip2;
         size = BattleShip2.BOARD_SIZE;
-        boardSize = size; // Cache size
-        // Initialize boolean arrays instead of HashSets
+        boardSize = size;
         shotsFired = new boolean[size][size];
         uselessLocations = new boolean[size][size];
         targetQueue = new LinkedList<>();
-        // Preallocate hitList array with total cells
         hitList = new Point[size * size];
         hitListSize = 0;
         boardState = new cellState[size][size];
@@ -80,22 +55,11 @@ public class SikkemaDileoBot implements BattleShipBot {
         consecutiveHits = 0;
         remainingShipSizes = new ArrayList<>();
 
-        // Initialize reusable arrays
         probabilityMap = new int[size][size];
         shipCells = new boolean[size][size];
 
-        // Initialize neighbor points
-        for (int i = 0; i < 4; i++) {
-            neighborPoints[i] = new Point();
-        }
+        for (int i = 0; i < boardSize; i++) for (int j = 0; j < boardSize; j++) boardState[i][j] = cellState.UNKNOWN;
 
-        // Initialize board state to UNKNOWN
-        // All cells unknown to start
-        for (int i = 0; i < boardSize; i++)
-            for (int j = 0; j < boardSize; j++)
-                boardState[i][j] = cellState.UNKNOWN;
-
-        // Initialize ship status tracking
         shipStatuses = new ShipStatus[battleShip.getShipSizes().length];
         for (int i = 0; i < battleShip.getShipSizes().length; i++) {
             shipStatuses[i] = new ShipStatus(battleShip.getShipSizes()[i]);
@@ -104,37 +68,33 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     * Builds a probability map for potential ship locations.
-     * shipSizes unused?
+     * Calculates probability scores for each cell on the board based on possible ship placements.
+     * The probability calculation considers:
+     * - Remaining ship sizes
+     * - Previous hits and misses
+     * - Ship orientation patterns
+     * - Adjacent cells to confirmed hits
+     * Higher scores indicate cells more likely to contain ships, with bonuses applied for:
+     * - Cells that could fit larger ships
+     * - Cells adjacent to confirmed hits
+     * - Cells aligned with suspected ship orientations
      *
-     * @param shipSizes Array containijg the remaining ships.
-     * @param hitList Array of points containing cells that have been hit.
-     * @param boardState An array representing the current state of the board.
-     * @return Array containing probability map.
+     * @param hitList Array of points where successful hits have been recorded
+     * @param boardState Current state of each cell on the game board
+     * @return Updated probability map with scores for each cell
      */
-    private int[][] buildProbabilityMap(int[] shipSizes, Point[] hitList, cellState[][] boardState) {
-        // Clear the probability map using Arrays.fill
-        for (int[] row : probabilityMap) {
-            Arrays.fill(row, 0);
-        }
-
-        // Pre-calculate ship size multipliers and cache board size
+    private int[][] buildProbabilityMap(Point[] hitList, cellState[][] boardState) {
+        for (int[] row : probabilityMap) Arrays.fill(row, 0);
         final int boardSize = this.boardSize;
         final int[] baseScores = new int[remainingShipSizes.size()];
         final int hitListSize = this.hitListSize;
-
-        // Precompute base scores
         for (int i = 0; i < remainingShipSizes.size(); i++) {
             int shipSize = remainingShipSizes.get(i);
-            baseScores[i] = shipSize * 10 + (hitListSize < 20 ? shipSize * 5 : 0);
+            baseScores[i] = shipSize * 10 + (hitListSize < 20 ? shipSize * 5:0);
         }
-
-        // Calculate base probabilities
         for (int i = 0; i < remainingShipSizes.size(); i++) {
             int shipSize = remainingShipSizes.get(i);
             int baseScore = baseScores[i];
-
-            // Horizontal placements
             for (int row = 0; row < boardSize; row++) {
                 cellState[] rowState = boardState[row];
                 for (int col = 0; col <= boardSize - shipSize; col++) {
@@ -160,7 +120,6 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
             }
 
-            // Vertical placements
             for (int col = 0; col < boardSize; col++) {
                 for (int row = 0; row <= boardSize - shipSize; row++) {
                     boolean canPlace = true;
@@ -184,8 +143,6 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
             }
         }
-
-        // Optimize adjacent cell bonus calculation
         final Point lastHit = this.lastHit;
         final orientation hitOrientation = this.hitOrientation;
 
@@ -199,9 +156,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                 int newY = hitY + dy;
                 if (newY >= 0 && newY < boardSize && boardState[hitX][newY] == cellState.UNKNOWN) {
                     probabilityMap[hitX][newY] += 30;
-                    if (lastHit != null && hitOrientation == orientation.HORIZONTAL) {
-                        probabilityMap[hitX][newY] += 50;
-                    }
+                    if (lastHit != null && hitOrientation == orientation.HORIZONTAL) probabilityMap[hitX][newY] += 50;
                 }
             }
 
@@ -210,9 +165,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                 int newX = hitX + dx;
                 if (newX >= 0 && newX < boardSize && boardState[newX][hitY] == cellState.UNKNOWN) {
                     probabilityMap[newX][hitY] += 30;
-                    if (lastHit != null && hitOrientation == orientation.VERTICAL) {
-                        probabilityMap[newX][hitY] += 50;
-                    }
+                    if (lastHit != null && hitOrientation == orientation.VERTICAL) probabilityMap[newX][hitY] += 50;
                 }
             }
         }
@@ -220,34 +173,31 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     * Finds the cell with the highest probability score that hasn't been shot at.
+     * Searches the probability map to find the cell with the highest probability score.
+     * Uses block-based scanning for improved performance, checking 8x8 blocks at a time.
+     * Only considers cells that haven't been shot at and aren't marked as useless.
      *
-     * @param map Array representing the probability scores for each cell.
-     * @return A Point representing the coords of the cell with highest probability.
+     * @param map The probability map containing scores for each cell
+     * @return Point representing the coordinates of the highest probability cell, 
+     *         or null if no valid cells are found
      */
     private Point findHighestProbability(int[][] map) {
-        // Init
         int highestProbability = -1;
         int bestX = -1;
         int bestY = -1;
         final int size = this.size;
         final boolean[][] shotsFired = this.shotsFired;
         final boolean[][] uselessLocations = this.uselessLocations;
-
-        // Try process in blocks for better use of cache
-        // Increased block size *
         final int BLOCK_SIZE = 8;
-        for (int i = 0; i < size; i += BLOCK_SIZE) {
+        for (int i = 0; i < size; i += BLOCK_SIZE)
             for (int j = 0; j < size; j += BLOCK_SIZE) {
                 int endI = Math.min(i + BLOCK_SIZE, size);
                 int endJ = Math.min(j + BLOCK_SIZE, size);
-
                 for (int bi = i; bi < endI; bi++) {
                     boolean[] shotsRow = shotsFired[bi];
                     boolean[] uselessRow = uselessLocations[bi];
                     int[] mapRow = map[bi];
-
-                    for (int bj = j; bj < endJ; bj++) {
+                    for (int bj = j; bj < endJ; bj++)
                         if (!shotsRow[bj] && !uselessRow[bj]) {
                             int prob = mapRow[bj];
                             if (prob > highestProbability) {
@@ -256,217 +206,160 @@ public class SikkemaDileoBot implements BattleShipBot {
                                 bestY = bj;
                             }
                         }
-                    }
                 }
             }
-        }
-        return highestProbability > 0 ? new Point(bestX, bestY) : null;
+        return highestProbability > 0 ? new Point(bestX, bestY):null;
     }
 
     /**
-     * Determines the coordinates of a ship based on a hit.
-     * Tracks the ship's orientation and all cells that are part of it.
-     * The returned value provides us with the starting point for identifying a ships location/position and orientation.
+     * Identifies all coordinates belonging to a ship after it has been sunk.
+     * Starting from a hit point, searches in all cardinal directions to find connected hits
+     * that form the complete ship. Once found, updates the ship status and marks adjacent
+     * cells as useless for future targeting.
+     * If a partial ship is found that matches a known ship size, adds potential remaining
+     * coordinates to the target queue for future shots.
      *
-     * @param p Point containing the coords of the cell that was hit.
+     * @param p The point from which to start searching for the ship's coordinates
      */
     private void findShipCoordinates(Point p) {
-        // Init list to store coords of diff ship cells and add the initial hit points to the list of coords.
-        // Next init the ships orientation (Unknown, we dont know it yet)
         ArrayList<Point> shipCoordinates = new ArrayList<>();
         shipCoordinates.add(p);
-        orientation targetBoatOrientation = orientation.UNKNOWN;
-
-        // Use local reference to avoid repeated field access
         cellState[][] localBoardState = this.boardState;
-
-        // Iterate through all potential directions to find a direction with another adjacent hit HIT
         for (Point dir : directions) {
-            // Coords of adjacent cell in direction
             int newX = p.x + dir.x;
             int newY = p.y + dir.y;
-            // Was it a hit?        TODO: If we remove the 'isValid' call, will this improve time and accuracy?
             if (isValid(newX, newY) && localBoardState[newX][newY] == cellState.HIT) {
-                // Set orientation based on direction
-                targetBoatOrientation = (dir.x != 0) ? orientation.VERTICAL : orientation.HORIZONTAL;
-
-                // Traverse through both positive and negative directions based on orientation
-                for (int mult = -1; mult <= 1; mult += 2) {
-                    // Calc x and y direction steps
-                    int dx = dir.x * mult;
-                    int dy = dir.y * mult;
-                    // Start traversing from the first hit point
+                for (int i = -1; i <= 1; i += 2) {
+                    int dx = dir.x * i;
+                    int dy = dir.y * i;
                     int currX = p.x + dx;
                     int currY = p.y + dy;
-
-                    // Continue to traverse while the cell is considered valid AND a hit is made
-                    // TODO: Another 'isValid' call...
                     while (isValid(currX, currY) && localBoardState[currX][currY] == cellState.HIT) {
-                        // If hit, add the cell that has been hit as part of the ship
                         shipCoordinates.add(new Point(currX, currY));
-                        // Try next cells in the current direction were in
                         currX += dx;
                         currY += dy;
                     }
                 }
-
-                // Check if we have enough hits to match a ship size
                 int shipLength = shipCoordinates.size();
-
-                // First check if this matches any unsunk ship size
-                for (ShipStatus s : shipStatuses) {
-                    if (!s.isSunk() && s.getSize() == shipLength) {
-                        updateShipStatus(shipCoordinates, targetBoatOrientation);
+                for (ShipStatus s : shipStatuses)
+                    if (s.isSunk() && s.getSize() == shipLength) {
+                        updateShipStatus(shipCoordinates);
                         return;
                     }
-                }
-                // This will run if we dont have a match yet, its a safeguard to check if we look further
-                // If we do, then traverse in both directions again
-                for (int mult = -1; mult <= 1; mult += 2) {
-                    // Same approach from above
-                    // Calculate steps and move
-                    int dx = dir.x * mult;
-                    int dy = dir.y * mult;
+                for (int i = -1; i <= 1; i += 2) {
+                    int dx = dir.x * i;
+                    int dy = dir.y * i;
                     int currX = p.x + dx;
                     int currY = p.y + dy;
-
-                    // If there is still no match, we try to look to another cell
-                    if (isValid(currX, currY) && localBoardState[currX][currY] == cellState.UNKNOWN) {
-                        // Check if adding this cell would match a ship size
-                        for (ShipStatus s : shipStatuses) {
-                            if (!s.isSunk() && s.getSize() == shipLength + 1) {
-                                // Add this cell to our target queue with high priority
+                    if (isValid(currX, currY) && localBoardState[currX][currY] == cellState.UNKNOWN)
+                        for (ShipStatus s : shipStatuses)
+                            if (s.isSunk() && s.getSize() == shipLength + 1) {
                                 targetQueue.add(new Point(currX, currY));
                                 break;
                             }
-                        }
-                    }
                 }
-                // Update the ships status with the coords identified and new orientation (if updated) and return
-                updateShipStatus(shipCoordinates, targetBoatOrientation);
+                updateShipStatus(shipCoordinates);
                 return;
             }
         }
-        // If there was no direction found
-        updateShipStatus(shipCoordinates, targetBoatOrientation);
+        updateShipStatus(shipCoordinates);
     }
 
     /**
-     * Updates the status of a ship when it's sunk.
-     * Marks adjacent cells as useless and updates ship tracking.
+     * Updates the status of a ship after it has been identified as sunk.
+     * This method will:
+     * - Updates the ship's hit coordinates
+     * - Marks the ship as sunk
+     * - Removes the ship's size from remaining sizes
+     * - Marks all adjacent cells as useless for targeting
+     * - Updates the board state for neighboring cells
      *
-     * @param shipCoordinates ArrayList of Point objects representing the coords of the ship that have been hit.
-     * @param o The ships orientation.
+     * @param shipCoordinates List of coordinates that make up the sunk ship
      */
-    private void updateShipStatus(ArrayList<Point> shipCoordinates, orientation o) {
-        // Init a new list to store the cells around the ship that has been sunk
+    private void updateShipStatus(ArrayList<Point> shipCoordinates) {
         ArrayList<Point> sunkShipNeighbors = new ArrayList<>();
-
-        // Use local references to avoid repeated field access
         cellState[][] localBoardState = this.boardState;
         boolean[][] localUselessLocations = this.uselessLocations;
 
-        // Loop through all ship statuses in order to find the unsunk ship,
-        // must match the size of the ship that has been sunk
         for (ShipStatus s : shipStatuses) {
-            // Check
-            if (!s.isSunk() && s.getSize() == shipCoordinates.size()) {
-                // Update coords, mark the ship as sunk, set orientation and retreive neighboring cells
+            if (s.isSunk() && s.getSize() == shipCoordinates.size()) {
                 s.setHitCoordinates(shipCoordinates);
                 s.setSunk(true);
-                s.setShipOrientation(o);
                 sunkShipNeighbors = s.getNeighbors();
-
-                // Update remaining ship sizes
                 remainingShipSizes.remove(Integer.valueOf(s.getSize()));
                 break;
             }
         }
 
-        // Debug
-        if (debug) System.out.print("Marking cells useless next to sunk boat: ");
-        for (Point n : sunkShipNeighbors) {
+        for (Point n : sunkShipNeighbors)
             if (isValid(n) && localBoardState[n.x][n.y] != cellState.HIT) {
                 localBoardState[n.x][n.y] = cellState.USELESS;
                 localUselessLocations[n.x][n.y] = true;
-                if (debug) System.out.print("X: " + n.x + " Y: " + n.y);
             }
-        }
+
     }
 
     /**
-     * Fires a shot at the best possible location.
-     * Uses a combination of target queue and probability map to determine where to shoot.
+     * Executes the bot's shooting strategy to select and fire at the next target.
+     * The targeting priority is as follows:
+     * 1. Continue targeting a partially hit ship based on orientation
+     * 2. Process targets from the priority queue based on probability scores
+     * 3. Select highest probability cell from probability map
+     * 4. Fall back to systematic grid search if no better options exist
+     * After each shot, updates the game state by:
+     * - Recording the shot result (hit/miss)
+     * - Updating ship tracking data
+     * - Adjusting targeting strategy based on hit results
+     * - Managing the target queue and hit orientation
+     * - Updating consecutive hits counter
+     * 
      */
     @Override
     public void fireShot() {
         Point shot = null;
         int previousSunkShips = battleShip.numberOfShipsSunk();
-        // Only build map if target queue empty
-        if (targetQueue.isEmpty()) {
-            probabilityMap = buildProbabilityMap(battleShip.getShipSizes(), hitList, boardState);
-        }
-
-        // If we have a hit and know the orientation, prioritize completing the ship
+        if (targetQueue.isEmpty()) probabilityMap = buildProbabilityMap(hitList, boardState);
         if (lastHit != null && hitOrientation != orientation.UNKNOWN) {
             Point nextCell = getNextCellInDirection(lastHit);
-            if (nextCell != null && !shotsFired[nextCell.x][nextCell.y] && !uselessLocations[nextCell.x][nextCell.y]) {
+            if (nextCell != null && !shotsFired[nextCell.x][nextCell.y] && !uselessLocations[nextCell.x][nextCell.y])
                 shot = nextCell;
-            } else {
+            else {
                 Point oppositeCell = getOppositeDirection(lastHit);
-                if (oppositeCell != null && !shotsFired[oppositeCell.x][oppositeCell.y] && !uselessLocations[oppositeCell.x][oppositeCell.y]) {
+                if (oppositeCell != null && !shotsFired[oppositeCell.x][oppositeCell.y] && !uselessLocations[oppositeCell.x][oppositeCell.y])
                     shot = oppositeCell;
-                }
             }
         }
 
-        // If no shot from completing a ship, check target queue against probability map
         if (shot == null && !targetQueue.isEmpty()) {
             Point[] sortedQueue = new Point[Math.min(targetQueue.size(), 10)];
             int index = 0;
-            for (Point p : targetQueue) {
+            for (Point p : targetQueue)
                 if (!shotsFired[p.x][p.y] && !uselessLocations[p.x][p.y]) {
                     sortedQueue[index++] = p;
                     if (index >= 10) break;
                 }
-            }
 
-            // Sort by probability
             Arrays.sort(sortedQueue, 0, index, (a, b) -> Integer.compare(probabilityMap[b.x][b.y], probabilityMap[a.x][a.y]));
 
-            // Take the highest-probability shot
             if (index > 0) {
                 shot = sortedQueue[0];
                 targetQueue.remove(shot);
             }
         }
+        if (shot == null) shot = findHighestProbability(probabilityMap);
 
-        // If still no shot, use highest probability from map
-        if (shot == null) {
-            shot = findHighestProbability(probabilityMap);
-        }
+        if (shot == null) for (int i = 0; i < size && shot == null; i++)
+            for (int j = 0; j < size && shot == null; j++)
+                if (!shotsFired[i][j] && !uselessLocations[i][j]) shot = new Point(i, j);
 
-        // If still no shot, use a more efficient search pattern
-        if (shot == null) {
-            for (int i = 0; i < size && shot == null; i++) {
-                for (int j = 0; j < size && shot == null; j++) {
-                    if (!shotsFired[i][j] && !uselessLocations[i][j]) {
-                        shot = new Point(i, j);
-                    }
-                }
-            }
-        }
-
-        // Fire the shot
+        assert shot != null;
         shotsFired[shot.x][shot.y] = true;
         boolean hit = battleShip.shoot(shot);
-        boardState[shot.x][shot.y] = hit ? cellState.HIT : cellState.MISS;
+        boardState[shot.x][shot.y] = hit ? cellState.HIT:cellState.MISS;
 
-        // Update game state
         if (hit) {
             addToHitList(shot);
             consecutiveHits++;
-
             if (battleShip.numberOfShipsSunk() > previousSunkShips) {
                 findShipCoordinates(shot);
                 targetQueue.clear();
@@ -479,11 +372,8 @@ public class SikkemaDileoBot implements BattleShipBot {
                 for (Point dir : directions) {
                     int newX = shot.x + dir.x;
                     int newY = shot.y + dir.y;
-                    if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY]) {
-                        if (probabilityMap[newX][newY] > 0) {
-                            targetQueue.add(new Point(newX, newY));
-                        }
-                    }
+                    if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
+                        if (probabilityMap[newX][newY] > 0) targetQueue.add(new Point(newX, newY));
                 }
             } else {
                 if (shot.x == lastHit.x) {
@@ -495,9 +385,7 @@ public class SikkemaDileoBot implements BattleShipBot {
                 }
                 if (hitOrientation != orientation.UNKNOWN) {
                     Point nextCell = getNextCellInDirection(shot);
-                    if (nextCell != null) {
-                        targetQueue.add(nextCell);
-                    }
+                    if (nextCell != null) targetQueue.add(nextCell);
                 }
                 lastHit = shot;
             }
@@ -517,9 +405,16 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     * Get next cell in direction
-     * @param current The current point
-     * @return
+     * Determines the next valid cell to target based on the current hit orientation.
+     * For horizontal orientation, checks cells to the right and left.
+     * For vertical orientation, checks cells above and below.
+     * Only returns cells that are:
+     * - Within board boundaries
+     * - Not previously shot at
+     * - Not marked as useless
+     *
+     * @param current The current hit position to search from
+     * @return Point representing the next cell to target, or null if no valid cells found
      */
     private Point getNextCellInDirection(Point current) {
         if (hitOrientation == orientation.HORIZONTAL) {
@@ -527,7 +422,6 @@ public class SikkemaDileoBot implements BattleShipBot {
             int newY = current.y + 1;
             if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
                 return new Point(newX, newY);
-
             newY = current.y - 1;
             if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
                 return new Point(newX, newY);
@@ -536,7 +430,6 @@ public class SikkemaDileoBot implements BattleShipBot {
             int newY = current.y;
             if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
                 return new Point(newX, newY);
-
             newX = current.x - 1;
             if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
                 return new Point(newX, newY);
@@ -545,117 +438,95 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
+     * Calculates the opposite direction from a first hit when continuing ship targeting.
+     * Used when the current direction of targeting hits an obstruction or miss, to try
+     * the opposite direction from the initial hit point.
+     * For horizontal ships, checks the opposite side along the Y-axis.
+     * For vertical ships, checks the opposite side along the X-axis.
+     * Only returns cells that are:
+     * - Within board boundaries
+     * - Not previously shot at
+     * - Not marked as useless
      *
-     * @param firstHit
-     * @return
+     * @param firstHit The initial hit point to calculate opposite direction from
+     * @return Point representing the cell in the opposite direction, or null if no valid cell exists
      */
     private Point getOppositeDirection(Point firstHit) {
         if (lastHit == null || firstHit == null) return null;
-
         if (hitOrientation == orientation.HORIZONTAL) {
-            int direction = lastHit.y > firstHit.y ? -1 : 1;
+            int direction = lastHit.y > firstHit.y ? -1:1;
             int newX = firstHit.x;
             int newY = firstHit.y + direction;
-            if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY]) {
+            if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
                 return new Point(newX, newY);
-            }
+
         } else if (hitOrientation == orientation.VERTICAL) {
-            int direction = lastHit.x > firstHit.x ? -1 : 1;
+            int direction = lastHit.x > firstHit.x ? -1:1;
             int newX = firstHit.x + direction;
             int newY = firstHit.y;
-            if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY]) {
+            if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
                 return new Point(newX, newY);
-            }
         }
         return null;
     }
 
     /**
-     * Marks cells around a sunk ship as useless.
-     * Prevents targeting cells that can't contain other ships.
+     * Updates the board state after a ship has been sunk by marking adjacent cells.
+     * Performs two main operations:
+     * 1. Marks all orthogonally adjacent cells (up, down, left, right) as useless
+     * 2. For large ships (size >= 5), marks additional cells at distance 3 as useless
+     *    based on the ship's orientation
+     * The method:
+     * - Creates a list of points from recent consecutive hits
+     * - Updates the shipCells array to track confirmed ship locations
+     * - Marks cells adjacent to the sunk ship as useless
+     * - For large ships, applies additional marking logic to optimize targeting
      */
     private void markSunkShipCells() {
-        ArrayList<Point> sunkShipPoints = new ArrayList<>();
-        for (int i = hitListSize - consecutiveHits; i < hitListSize; i++) {
-            sunkShipPoints.add(hitList[i]);
-        }
-
-        // Clear the ship cells array
-        for (int i = 0; i < size; i++) {
-            Arrays.fill(shipCells[i], false);
-        }
-
-        // Mark ship cells
-        for (Point p : sunkShipPoints) {
-            shipCells[p.x][p.y] = true;
-        }
-
-        // Mark cells around the ship
-        for (Point p : sunkShipPoints) {
-            // Mark cells that are adjacent to the sunk ship
-            for (int dx = -1; dx <= 1; dx++) {
+        ArrayList<Point> sunkShipPoints = new ArrayList<>(Arrays.asList(hitList).subList(hitListSize - consecutiveHits, hitListSize));
+        for (int i = 0; i < size; i++) Arrays.fill(shipCells[i], false);
+        for (Point p : sunkShipPoints) shipCells[p.x][p.y] = true;
+        for (Point p : sunkShipPoints)
+            for (int dx = -1; dx <= 1; dx++)
                 for (int dy = -1; dy <= 1; dy++) {
                     if (dx == 0 && dy == 0) continue;
-                    // Skip diagonals as ships can touch diagonally
                     if (dx != 0 && dy != 0) continue;
                     int newX = p.x + dx;
                     int newY = p.y + dy;
-                    if (isValid(newX, newY) && !shotsFired[newX][newY]) {
-                        markUseless(newX, newY);
-                    }
+                    if (isValid(newX, newY) && !shotsFired[newX][newY]) markUseless(newX, newY);
                 }
-            }
-        }
 
-        // More aggressive marking for the largest ships
         int sunkShipSize = consecutiveHits;
         if (sunkShipSize >= 5) {
             for (Point p : sunkShipPoints) {
-                // Determine the orientation of the sunk ship
                 boolean isHorizontal = false;
                 if (sunkShipPoints.size() > 1) {
                     Point first = sunkShipPoints.get(0);
                     Point second = sunkShipPoints.get(1);
                     isHorizontal = first.x == second.x;
                 }
-
-                // Mark additional cells based on orientation
-                if (isHorizontal) {
-                    // Mark cells to the left and right
-                    for (int dy = -3; dy <= 3; dy += 6) {
-                        int newX = p.x;
-                        int newY = p.y + dy;
-                        if (isValid(newX, newY) && !shotsFired[newX][newY]) {
-                            markUseless(newX, newY);
-                        }
-                    }
-                } else {
-                    // Mark cells above and below
-                    for (int dx = -3; dx <= 3; dx += 6) {
-                        int newX = p.x + dx;
-                        int newY = p.y;
-                        if (isValid(newX, newY) && !shotsFired[newX][newY]) {
-                            markUseless(newX, newY);
-                        }
-                    }
+                if (isHorizontal) for (int dy = -3; dy <= 3; dy += 6) {
+                    int newX = p.x;
+                    int newY = p.y + dy;
+                    if (isValid(newX, newY) && !shotsFired[newX][newY]) markUseless(newX, newY);
                 }
+                else for (int dx = -3; dx <= 3; dx += 6) {
+                    int newX = p.x + dx;
+                    int newY = p.y;
+                    if (isValid(newX, newY) && !shotsFired[newX][newY]) markUseless(newX, newY);
+                }
+
             }
         }
     }
 
     /**
-     * Marks a cell as useless and adds it to the useless locations set.
-     */
-    private void markUseless(Point p) {
-        boardState[p.x][p.y] = cellState.USELESS;
-        uselessLocations[p.x][p.y] = true;
-    }
-
-    /**
-     * Overloaded version that takes x,y coordinates directly
+     * Marks a specific cell as useless for targeting.
+     * Updates both the board state and useless locations tracking arrays
+     * to indicate that this cell should not be considered for future shots.
      *
-     * @param x
-     * @param y
+     * @param x The x-coordinate of the cell to mark
+     * @param y The y-coordinate of the cell to mark
      */
     private void markUseless(int x, int y) {
         boardState[x][y] = cellState.USELESS;
@@ -663,121 +534,88 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     * Marks cells perpendicular to the current ship orientation as useless.
-     * Used to narrow down posible ship locations.
+     * Marks cells perpendicular to a hit ship as useless for targeting.
+     * When a ship's orientation is known, cells perpendicular to the ship's axis
+     * cannot contain parts of the same ship and can be marked as useless.
+     * For horizontal ships: marks cells above and below
+     * For vertical ships: marks cells to the left and right
      *
-     * @param shot
-     * @param horizontal
+     * @param shot The point where the hit occurred
+     * @param horizontal True if the ship is horizontal, false if vertical
      */
     private void markPerpendicularCellsUseless(Point shot, boolean horizontal) {
-        if (horizontal) {
-            // Mark cells above and below the ship
-            for (int i = -1; i <= 1; i++) {
-                if (i == 0) continue; // Skip the ship itself
-                int newX = shot.x + i;
-                int newY = shot.y;
-                if (isValid(newX, newY)) markUseless(newX, newY);
-            }
-        } else {
-            // Mark cells to the left and right of the ship
-            for (int i = -1; i <= 1; i++) {
-                if (i == 0) continue; // Skip the ship itself
-                int newX = shot.x;
-                int newY = shot.y + i;
-                if (isValid(newX, newY)) markUseless(newX, newY);
-            }
+        if (horizontal) for (int i = -1; i <= 1; i++) {
+            if (i == 0) continue;
+            int newX = shot.x + i;
+            int newY = shot.y;
+            if (isValid(newX, newY)) markUseless(newX, newY);
         }
+        else for (int i = -1; i <= 1; i++) {
+            if (i == 0) continue;
+            int newX = shot.x;
+            int newY = shot.y + i;
+            if (isValid(newX, newY)) markUseless(newX, newY);
+        }
+
     }
 
     /**
-     * Checks if a given point is within the board boundaries.
+     * Validates if a point's coordinates are within the game board boundaries.
+     * Checks if both x and y coordinates are between 0 and the board size.
+     *
+     * @param point The Point object containing x,y coordinates to validate
+     * @return boolean True if the point is within bounds, false otherwise
      */
     private boolean isValid(Point point) {
         return point.x >= 0 && point.x < size && point.y >= 0 && point.y < size;
     }
 
     /**
-     * Overloaded version that takes x,y coordinates directly
+     * Validates if given coordinates are within the game board boundaries.
+     * Checks if both x and y coordinates are between 0 and the board size.
+     *
+     * @param x The x-coordinate to validate
+     * @param y The y-coordinate to validate
+     * @return boolean True if the coordinates are within bounds, false otherwise
      */
     private boolean isValid(int x, int y) {
         return x >= 0 && x < size && y >= 0 && y < size;
     }
 
     /**
-     * Returns authors for assignment.
+     * Returns the names of the bot's authors.
+     * Required override from the base class.
+     *
+     * @return String The names of the bot's authors
      */
     @Override
     public String getAuthors() {
         return "Nathan Sikkema and Brendan Dileo";
     }
-
+    
     /**
-     * Prints the current state of the board to debug.
-     * Hits - (*), Misses - (m), Useless - (X).
-     */
-    public void printBoardState() {
-        System.out.println("Current Board State:");
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                cellState cell = boardState[i][j];
-                if (cell == null || cell == cellState.UNKNOWN) System.out.print("• ");
-                else {
-                    switch (cell) {
-                        case HIT:
-                            System.out.print("* ");
-                            break;
-                        case MISS:
-                            System.out.print("m ");
-                            break;
-                        case USELESS:
-                            System.out.print("X ");
-                            break;
-                    }
-                }
-            }
-            System.out.println();
-        }
-        System.out.println();
-    }
-
-    /**
-     * Prints debug messages if debug mode is enabled.
-     */
-    private void debugPrint(String message) {
-        if (debug) System.out.println("[DEBUG] " + message);
-    }
-
-    /**
-     * Possible states of a cell on the board
-     */
-    private enum cellState {
-        HIT, MISS, UNKNOWN, USELESS
-    }
-
-    /**
-     * Update other methods to use hitList array instead of ArrayList
-     * Optimizatiuon?
-     * @param p
-     */
-    private void addToHitList(Point p) {
-        hitList[hitListSize++] = p;
-    }
-
-    /**
+     * Adds a successful hit to the hit tracking list.
+     * Maintains a record of all successful shots for ship tracking
+     * and targeting strategy optimization.
      *
-     * TODO: UNUSED BUT KEEP ---> GARBAGE*
-     * @return
+     * @param hit The Point coordinates of the successful hit to add
      */
-    private Point getLastHit() {
-        return hitListSize > 0 ? hitList[hitListSize - 1] : null;
+    private void addToHitList(Point hit) {
+        hitList[hitListSize++] = hit;
     }
 
     /**
+     * Retrieves a hit point from the hit tracking list at a specific index.
+     * Used to access historical hit data for ship tracking and targeting.
      *
-     * @param index
-     * @return
+     * @param index The index in the hit list to retrieve
+     * @return Point The coordinates of the hit at the specified index
      */
     private Point getHitAt(int index) {
-        return index < hitListSize ? hitList[index] : null;
+        return index < hitListSize ? hitList[index]:null;
+    }
+
+    private enum cellState {
+        HIT, MISS, UNKNOWN, USELESS
     }
 }
