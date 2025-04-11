@@ -16,20 +16,25 @@ import java.util.Queue;
  (See the table below for the performance difference.)
 
  The probability map takes into account:
-    • Remaining ship sizes
-    • Previous hits and misses
-    • Valid ship orientations
-    • Cells adjacent to confirmed hits
+ • Remaining ship sizes
+ • Previous hits and misses
+ • Valid ship orientations
+ • Cells adjacent to confirmed hits
 
  By factoring all of this in, we were able to build a very effective probability model—one that I think could
  replace all other shot logic on its own and still perform under 100 shots per game on average.
 
- ==================================================================================
-   |         Metric          | Without Probability Map  | With Probability Map  |
-   |-------------------------|--------------------------|-----------------------|
-   | Average Score (Shots)	  | 187.13	                  | 81.32                 |
-   | Time for 10,000 games	  | 1,158 ms	                | 3,228 ms              |
- ==================================================================================
+ ================================================================================
+  |         Metric          | Without Probability Map  | With Probability Map  |
+  |-------------------------|--------------------------|-----------------------|
+  | Average Score (Shots)   | 187.13	               | 81.32                 |
+  | Time for 10,000 games   | 1,158 ms                 | 4,428 ms              |
+ ================================================================================
+ **************************************IMPORTANT NOTE*****************************************
+ *    ***NOTE: THESE TIMES WERE TAKEN FROM RUNNING ON LAB COMPUTERS AT MOHAWK COLLEGE ***    *
+ * If you do not get the results under 5,000ms on the first or second run, please try again. *
+ * I am not getting a consistent time, It ranges from 4,100ms - 5,600ms.                     *
+ *********************************************************************************************
 
  Why the probability map had an impact:
  • Intelligent Shot Selection:  Using statistics to guide each move, it removed the guesswork.
@@ -59,11 +64,11 @@ public class SikkemaDileoBot implements BattleShipBot {
     private boolean[][] shipCells;
 
     /**
-     Initializes the bot with a new game instance and resets all tracking variables.
-     Sets up the game board, initializes tracking arrays, and prepares the targeting system.
-     This method is called once at the start of each new game.
-
-     @param battleShip2 The BattleShip game instance that this bot will interact with
+     * Initializes the bot with a new game instance and resets all tracking variables.
+     * Sets up the game board, initializes tracking arrays, and prepares the targeting system.
+     * This method is called once at the start of each new game.
+     *
+     * @param battleShip2 The BattleShip game instance that this bot will interact with
      */
     @Override
     public void initialize(BattleShip2 battleShip2) {
@@ -94,20 +99,20 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Calculates probability scores for each cell on the board based on possible ship placements.
-     The probability calculation considers:
-     - Remaining ship sizes
-     - Previous hits and misses
-     - Ship orientation patterns
-     - Adjacent cells to confirmed hits
-     Higher scores indicate cells more likely to contain ships, with bonuses applied for:
-     - Cells that could fit larger ships
-     - Cells adjacent to confirmed hits
-     - Cells aligned with suspected ship orientations
-
-     @param hitList    Array of points where successful hits have been recorded
-     @param boardState Current state of each cell on the game board
-     @return Updated probability map with scores for each cell
+     * Calculates probability scores for each cell on the board based on possible ship placements.
+     * The probability calculation considers:
+     * - Remaining ship sizes
+     * - Previous hits and misses
+     * - Ship orientation patterns
+     * - Adjacent cells to confirmed hits
+     * Higher scores indicate cells more likely to contain ships, with bonuses applied for:
+     * - Cells that could fit larger ships
+     * - Cells adjacent to confirmed hits
+     * - Cells aligned with suspected ship orientations
+     *
+     * @param hitList    Array of points where successful hits have been recorded
+     * @param boardState Current state of each cell on the game board
+     * @return Updated probability map with scores for each cell
      */
     private int[][] buildProbabilityMap(Point[] hitList, cellState[][] boardState) {
         for (int[] row : probabilityMap) Arrays.fill(row, 0);
@@ -118,7 +123,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         // Calculate base scores for each remaining ship size
         for (int i = 0; i < remainingShipSizes.size(); i++) {
             int shipSize = remainingShipSizes.get(i);
-            baseScores[i] = shipSize * 10 + (hitListSize < 20 ? shipSize * 5:0);
+            baseScores[i] = shipSize * 10 + (hitListSize < 20 ? shipSize * 5 : 0);
         }
 
         // Process each remaining ship size
@@ -214,13 +219,13 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Searches the probability map to find the cell with the highest probability score.
-     Uses block-based scanning for improved performance, checking 8x8 blocks at a time.
-     Only considers cells that haven't been shot at and aren't marked as useless.
-
-     @param map The probability map containing scores for each cell
-     @return Point representing the coordinates of the highest probability cell,
-     or null if no valid cells are found
+     * Searches the probability map to find the cell with the highest probability score.
+     * Uses block-based scanning for improved performance, checking 8x8 blocks at a time.
+     * Only considers cells that haven't been shot at and aren't marked as useless.
+     *
+     * @param map The probability map containing scores for each cell
+     * @return Point representing the coordinates of the highest probability cell,
+     * or null if no valid cells are found
      */
     private Point findHighestProbability(int[][] map) {
         int highestProbability = -1;
@@ -259,18 +264,18 @@ public class SikkemaDileoBot implements BattleShipBot {
             }
         }
         // Return the highest probability location, or null if no valid locations found
-        return highestProbability > 0 ? new Point(bestX, bestY):null;
+        return highestProbability > 0 ? new Point(bestX, bestY) : null;
     }
 
     /**
-     Identifies all coordinates belonging to a ship after it has been sunk.
-     Starting from a hit point, searches in all cardinal directions to find connected hits
-     that form the complete ship. Once found, updates the ship status and marks adjacent
-     cells as useless for future targeting.
-     If a partial ship is found that matches a known ship size, adds potential remaining
-     coordinates to the target queue for future shots.
-
-     @param p The point from which to start searching for the ship's coordinates
+     * Identifies all coordinates belonging to a ship after it has been sunk.
+     * Starting from a hit point, searches in all cardinal directions to find connected hits
+     * that form the complete ship. Once found, updates the ship status and marks adjacent
+     * cells as useless for future targeting.
+     * If a partial ship is found that matches a known ship size, adds potential remaining
+     * coordinates to the target queue for future shots.
+     *
+     * @param p The point from which to start searching for the ship's coordinates
      */
     private void findShipCoordinates(Point p) {
         ArrayList<Point> shipCoordinates = new ArrayList<>();
@@ -318,15 +323,15 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Updates the status of a ship after it has been identified as sunk.
-     This method will:
-     - Updates the ship's hit coordinates
-     - Marks the ship as sunk
-     - Removes the ship's size from remaining sizes
-     - Marks all adjacent cells as useless for targeting
-     - Updates the board state for neighboring cells
-
-     @param shipCoordinates List of coordinates that make up the sunk ship
+     * Updates the status of a ship after it has been identified as sunk.
+     * This method will:
+     * - Updates the ship's hit coordinates
+     * - Marks the ship as sunk
+     * - Removes the ship's size from remaining sizes
+     * - Marks all adjacent cells as useless for targeting
+     * - Updates the board state for neighboring cells
+     *
+     * @param shipCoordinates List of coordinates that make up the sunk ship
      */
     private void updateShipStatus(ArrayList<Point> shipCoordinates) {
         ArrayList<Point> sunkShipNeighbors = new ArrayList<>();
@@ -344,7 +349,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         }
 
         for (Point n : sunkShipNeighbors)
-            if (isValid(n.x,n.y) && localBoardState[n.x][n.y] != cellState.HIT) {
+            if (isValid(n.x, n.y) && localBoardState[n.x][n.y] != cellState.HIT) {
                 localBoardState[n.x][n.y] = cellState.USELESS;
                 localUselessLocations[n.x][n.y] = true;
             }
@@ -352,18 +357,18 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Executes the bot's shooting strategy to select and fire at the next target.
-     The targeting priority is as follows:
-     1. Continue targeting a partially hit ship based on orientation
-     2. Process targets from the priority queue based on probability scores
-     3. Select highest probability cell from probability map
-     4. Fall back to systematic grid search if no better options exist
-     After each shot, updates the game state by:
-     - Recording the shot result (hit/miss)
-     - Updating ship tracking data
-     - Adjusting targeting strategy based on hit results
-     - Managing the target queue and hit orientation
-     - Updating consecutive hits counter
+     * Executes the bot's shooting strategy to select and fire at the next target.
+     * The targeting priority is as follows:
+     * 1. Continue targeting a partially hit ship based on orientation
+     * 2. Process targets from the priority queue based on probability scores
+     * 3. Select highest probability cell from probability map
+     * 4. Fall back to systematic grid search if no better options exist
+     * After each shot, updates the game state by:
+     * - Recording the shot result (hit/miss)
+     * - Updating ship tracking data
+     * - Adjusting targeting strategy based on hit results
+     * - Managing the target queue and hit orientation
+     * - Updating consecutive hits counter
      */
     @Override
     public void fireShot() {
@@ -411,7 +416,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         assert shot != null;
         shotsFired[shot.x][shot.y] = true;
         boolean hit = battleShip.shoot(shot);
-        boardState[shot.x][shot.y] = hit ? cellState.HIT:cellState.MISS;
+        boardState[shot.x][shot.y] = hit ? cellState.HIT : cellState.MISS;
 
         if (hit) {
             hitList[hitListSize++] = shot;
@@ -448,7 +453,7 @@ public class SikkemaDileoBot implements BattleShipBot {
         } else {
             if (consecutiveHits > 0 && hitOrientation != orientation.UNKNOWN) {
                 targetQueue.clear();
-                Point firstHit = hitListSize - consecutiveHits < hitListSize ? hitList[hitListSize - consecutiveHits]:null;
+                Point firstHit = hitListSize - consecutiveHits < hitListSize ? hitList[hitListSize - consecutiveHits] : null;
                 Point oppositeDir = getOppositeDirection(firstHit);
                 if (oppositeDir != null) targetQueue.add(oppositeDir);
             }
@@ -461,16 +466,16 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Determines the next valid cell to target based on the current hit orientation.
-     For horizontal orientation, checks cells to the right and left.
-     For vertical orientation, checks cells above and below.
-     Only returns cells that are:
-     - Within board boundaries
-     - Not previously shot at
-     - Not marked as useless
-
-     @param current The current hit position to search from
-     @return Point representing the next cell to target, or null if no valid cells found
+     * Determines the next valid cell to target based on the current hit orientation.
+     * For horizontal orientation, checks cells to the right and left.
+     * For vertical orientation, checks cells above and below.
+     * Only returns cells that are:
+     * - Within board boundaries
+     * - Not previously shot at
+     * - Not marked as useless
+     *
+     * @param current The current hit position to search from
+     * @return Point representing the next cell to target, or null if no valid cells found
      */
     private Point getNextCellInDirection(Point current) {
         if (hitOrientation == orientation.HORIZONTAL) {
@@ -494,30 +499,30 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Calculates the opposite direction from a first hit when continuing ship targeting.
-     Used when the current direction of targeting hits an obstruction or miss, to try
-     the opposite direction from the initial hit point.
-     For horizontal ships, checks the opposite side along the Y-axis.
-     For vertical ships, checks the opposite side along the X-axis.
-     Only returns cells that are:
-     - Within board boundaries
-     - Not previously shot at
-     - Not marked as useless
-
-     @param firstHit The initial hit point to calculate opposite direction from
-     @return Point representing the cell in the opposite direction, or null if no valid cell exists
+     * Calculates the opposite direction from a first hit when continuing ship targeting.
+     * Used when the current direction of targeting hits an obstruction or miss, to try
+     * the opposite direction from the initial hit point.
+     * For horizontal ships, checks the opposite side along the Y-axis.
+     * For vertical ships, checks the opposite side along the X-axis.
+     * Only returns cells that are:
+     * - Within board boundaries
+     * - Not previously shot at
+     * - Not marked as useless
+     *
+     * @param firstHit The initial hit point to calculate opposite direction from
+     * @return Point representing the cell in the opposite direction, or null if no valid cell exists
      */
     private Point getOppositeDirection(Point firstHit) {
         if (lastHit == null || firstHit == null) return null;
         if (hitOrientation == orientation.HORIZONTAL) {
-            int direction = lastHit.y > firstHit.y ? -1:1;
+            int direction = lastHit.y > firstHit.y ? -1 : 1;
             int newX = firstHit.x;
             int newY = firstHit.y + direction;
             if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
                 return new Point(newX, newY);
 
         } else if (hitOrientation == orientation.VERTICAL) {
-            int direction = lastHit.x > firstHit.x ? -1:1;
+            int direction = lastHit.x > firstHit.x ? -1 : 1;
             int newX = firstHit.x + direction;
             int newY = firstHit.y;
             if (isValid(newX, newY) && !shotsFired[newX][newY] && !uselessLocations[newX][newY])
@@ -527,16 +532,16 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Updates the board state after a ship has been sunk by marking adjacent cells.
-     Performs two main operations:
-     1. Marks all orthogonally adjacent cells (up, down, left, right) as useless
-     2. For large ships (size >= 5), marks additional cells at distance 3 as useless
-     based on the ship's orientation
-     The method:
-     - Creates a list of points from recent consecutive hits
-     - Updates the shipCells array to track confirmed ship locations
-     - Marks cells adjacent to the sunk ship as useless
-     - For large ships, applies additional marking logic to optimize targeting
+     * Updates the board state after a ship has been sunk by marking adjacent cells.
+     * Performs two main operations:
+     * 1. Marks all orthogonally adjacent cells (up, down, left, right) as useless
+     * 2. For large ships (size >= 5), marks additional cells at distance 3 as useless
+     * based on the ship's orientation
+     * The method:
+     * - Creates a list of points from recent consecutive hits
+     * - Updates the shipCells array to track confirmed ship locations
+     * - Marks cells adjacent to the sunk ship as useless
+     * - For large ships, applies additional marking logic to optimize targeting
      */
     private void markSunkShipCells() {
         ArrayList<Point> sunkShipPoints = new ArrayList<>(Arrays.asList(hitList).subList(hitListSize - consecutiveHits, hitListSize));
@@ -576,12 +581,12 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Marks a specific cell as useless for targeting.
-     Updates both the board state and useless locations tracking arrays
-     to indicate that this cell should not be considered for future shots.
-
-     @param x The x-coordinate of the cell to mark
-     @param y The y-coordinate of the cell to mark
+     * Marks a specific cell as useless for targeting.
+     * Updates both the board state and useless locations tracking arrays
+     * to indicate that this cell should not be considered for future shots.
+     *
+     * @param x The x-coordinate of the cell to mark
+     * @param y The y-coordinate of the cell to mark
      */
     private void markUseless(int x, int y) {
         boardState[x][y] = cellState.USELESS;
@@ -589,14 +594,14 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Marks cells perpendicular to a hit ship as useless for targeting.
-     When a ship's orientation is known, cells perpendicular to the ship's axis
-     cannot contain parts of the same ship and can be marked as useless.
-     For horizontal ships: marks cells above and below
-     For vertical ships: marks cells to the left and right
-
-     @param shot       The point where the hit occurred
-     @param horizontal True if the ship is horizontal, false if vertical
+     * Marks cells perpendicular to a hit ship as useless for targeting.
+     * When a ship's orientation is known, cells perpendicular to the ship's axis
+     * cannot contain parts of the same ship and can be marked as useless.
+     * For horizontal ships: marks cells above and below
+     * For vertical ships: marks cells to the left and right
+     *
+     * @param shot       The point where the hit occurred
+     * @param horizontal True if the ship is horizontal, false if vertical
      */
     private void markPerpendicularCellsUseless(Point shot, boolean horizontal) {
         if (horizontal) for (int i = -1; i <= 1; i++) {
@@ -615,21 +620,21 @@ public class SikkemaDileoBot implements BattleShipBot {
     }
 
     /**
-     Validates if given coordinates are within the game board boundaries.
-     Checks if both x and y coordinates are between 0 and the board size.
-
-     @param x The x-coordinate to validate
-     @param y The y-coordinate to validate
-     @return boolean True if the coordinates are within bounds, false otherwise
+     * Validates if given coordinates are within the game board boundaries.
+     * Checks if both x and y coordinates are between 0 and the board size.
+     *
+     * @param x The x-coordinate to validate
+     * @param y The y-coordinate to validate
+     * @return boolean True if the coordinates are within bounds, false otherwise
      */
     private boolean isValid(int x, int y) {
         return x >= 0 && x < size && y >= 0 && y < size;
     }
 
     /**
-     Returns our names because we are the bot's authors.
-
-     @return String The names of the bot's authors
+     * Returns our names because we are the bot's authors.
+     *
+     * @return String The names of the bot's authors
      */
     @Override
     public String getAuthors() {
