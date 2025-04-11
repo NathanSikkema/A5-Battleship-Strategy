@@ -10,6 +10,33 @@ import java.util.Queue;
 /**
  Adapted from code by Mark Yendt (ExampleBot.java), Mohawk College, December 2021
 
+ Discussion Question 2:
+ The single most important strategy we implemented in our Battleship bot was the probability map.
+ This approach significantly improved the bot’s accuracy and decision-making during the game
+ (see the table below for the performance difference).
+
+ The probability map takes into account:
+    • Remaining ship sizes
+    • Previous hits and misses
+    • Valid ship orientations
+    • Cells adjacent to confirmed hits
+
+ By factoring all of this in, we were able to build a very effective probability model—one that I think could
+ replace all other shot logic on its own and still perform under 100 shots per game on average.
+
+ ==================================================================================
+   |         Metric          | Without Probability Map  | With Probability Map  |
+   |-------------------------|--------------------------|-----------------------|
+   | Average Score (Shots)	 | 187.13	                | 81.32                 |
+   | Time for 10,000 games	 | 1,158 ms	                | 3,228 ms              |
+ ==================================================================================
+
+ Why the probability map had an impact:
+ • Intelligent Shot Selection:  It removed the guesswork by using statistics to guide each move.
+ • Adaptability:                The bot adapted its shooting strategy based on remaining ships and known hits.
+ • Coverage Efficiency:         It avoided redundant targeting and minimized wasted shots.
+ • Early Detection:             Ships were located faster, which led to earlier transitions into "target" mode (where adjacent cells are checked).
+
  @author Nathan Sikkema
  @author Brendan Dileo */
 
